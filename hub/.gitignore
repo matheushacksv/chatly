@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environment
+.venv/
+
+# Secrets
+.env
+
+# Django runtime
+staticfiles/
+media/
+*.sqlite3
+
+# Celery beat schedule (runtime files)
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+celerybeat.pid
+
+# Design artifacts
+design-system.html

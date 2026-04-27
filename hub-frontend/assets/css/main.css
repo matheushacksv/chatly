@@ -1,0 +1,267 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Tokens de tema                                                       */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* Triplas RGB para uso com Tailwind opacity modifiers */
+  --base-rgb: 5 5 5;
+  --surface-rgb: 10 10 10;
+  --accent-rgb: 249 115 22;
+
+  /* Atalhos para uso direto em CSS (background-color: var(--base)) */
+  --base: rgb(var(--base-rgb));
+  --surface: rgb(var(--surface-rgb));
+
+  --border: rgba(255,255,255,0.05);
+  --border-md: rgba(255,255,255,0.1);
+  --border-lg: rgba(255,255,255,0.2);
+  --foreground: #ffffff;
+  --muted: #d4d4d4;
+  --subtle: #737373;
+  --grid-line: rgba(255,255,255,0.03);
+}
+
+html.light {
+  --base-rgb: 240 240 240;
+  --surface-rgb: 255 255 255;
+
+  --border: rgba(0,0,0,0.08);
+  --border-md: rgba(0,0,0,0.12);
+  --border-lg: rgba(0,0,0,0.20);
+  --foreground: #111111;
+  --muted: #333333;
+  --subtle: #6b7280;
+  --grid-line: rgba(0,0,0,0.04);
+}
+
+/* ------------------------------------------------------------------ */
+/* Overrides de light mode para classes Tailwind inline               */
+/* ------------------------------------------------------------------ */
+
+/* Escala invertida: light mode usa tons escuros onde dark usa tons claros */
+/* !important garante que sobrescreve os @layer utilities do Tailwind      */
+html.light .text-white          { color: #111111 !important; }
+html.light .text-neutral-100    { color: #1a1a1a !important; }
+html.light .text-neutral-200    { color: #2a2a2a !important; }
+html.light .text-neutral-300    { color: #2a2a2a !important; }
+html.light .text-neutral-400    { color: #333333 !important; }
+html.light .text-neutral-500    { color: #555555 !important; }
+html.light .text-neutral-600    { color: #444444 !important; }
+html.light .text-neutral-700    { color: #333333 !important; }
+html.light .text-neutral-800    { color: #222222 !important; }
+
+
+html.light .border-white\/5     { border-color: rgba(0,0,0,0.08) !important; }
+html.light .border-white\/10    { border-color: rgba(0,0,0,0.12) !important; }
+html.light .border-white\/20    { border-color: rgba(0,0,0,0.18) !important; }
+
+html.light .bg-white\/5         { background-color: rgba(0,0,0,0.04) !important; }
+html.light .bg-white\/10        { background-color: rgba(0,0,0,0.07) !important; }
+
+html.light .bg-neutral-900      { background-color: #e8e8e8 !important; }
+html.light .bg-neutral-800      { background-color: #ddd !important; }
+html.light .hover\:bg-white\/5:hover { background-color: rgba(0,0,0,0.05) !important; }
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                 */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--base);
+    color: var(--muted);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Componentes                                                          */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 70%);
+  }
+
+  .beam-border-v {
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    width: 1px;
+    background: var(--border);
+    overflow: hidden;
+    z-index: 10;
+  }
+  .beam-border-v::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(to bottom, transparent, rgb(var(--accent-rgb)), transparent);
+    transform: translateY(-100%);
+    animation: beam-drop 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    opacity: 0.7;
+  }
+
+  .beam-border-h {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: var(--border);
+    overflow: hidden;
+    z-index: 10;
+  }
+  .beam-border-h::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(to right, transparent, rgb(var(--accent-rgb)), transparent);
+    transform: translateX(-100%);
+    animation: beam-slide 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-delay: 2.5s;
+    opacity: 0.7;
+  }
+
+  /* Botão primário */
+  .btn-primary {
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid var(--border-md);
+    transition: border-color 0.3s;
+    width: 100%;
+  }
+  .btn-primary:hover {
+    border-color: rgb(var(--accent-rgb));
+  }
+  .corner-tl {
+    position: absolute;
+    top: 0; left: 0;
+    width: 0.5rem; height: 0.5rem;
+    border-top: 1px solid rgb(var(--accent-rgb));
+    border-left: 1px solid rgb(var(--accent-rgb));
+    opacity: 0;
+    transition: all 0.3s;
+    transform: translate(-4px, -4px);
+  }
+  .btn-primary:hover .corner-tl {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  .corner-br {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 0.5rem; height: 0.5rem;
+    border-bottom: 1px solid rgb(var(--accent-rgb));
+    border-right: 1px solid rgb(var(--accent-rgb));
+    opacity: 0;
+    transition: all 0.3s;
+    transform: translate(4px, 4px);
+  }
+  .btn-primary:hover .corner-br {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  /* Input padrão */
+  .input-wrapper {
+    background-color: var(--surface);
+    border: 1px solid var(--border-md);
+    border-radius: 9999px;
+    padding: 0.75rem 1rem 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: border-color 0.2s;
+  }
+  .input-wrapper:hover,
+  .input-wrapper:focus-within {
+    border-color: rgb(var(--accent-rgb) / 0.5);
+  }
+  .input-field {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--foreground);
+    font-size: 0.875rem;
+    width: 100%;
+    font-family: ui-monospace, monospace;
+  }
+  .input-field::placeholder {
+    color: var(--subtle);
+  }
+
+  /* Label padrão */
+  .field-label {
+    font-size: 0.75rem;
+    font-family: ui-monospace, monospace;
+    color: var(--subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+}
+
+@keyframes beam-drop {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes beam-slide {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Scrollbar customizada — fina e sutil para painéis de chat/listas    */
+/* ------------------------------------------------------------------ */
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.10) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.10);
+  border-radius: 2px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.20);
+}
+
+html.light .scrollbar-thin {
+  scrollbar-color: rgba(0,0,0,0.12) transparent;
+}
+html.light .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+}
+html.light .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.22);
+}

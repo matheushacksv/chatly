@@ -1,0 +1,30 @@
+export default defineNuxtRouteMiddleware(async (to) => {
+  if (process.server) return
+
+  const authStore = useAuthStore()
+
+  // Carrega tokens do localStorage na primeira navegação
+  if (!authStore.accessToken) {
+    authStore.loadFromStorage()
+  }
+
+  const isPublicRoute =
+    to.path === '/login' ||
+    to.path === '/register' ||
+    to.path === '/forgot-password' ||
+    to.path === '/reset-password' ||
+    to.path.startsWith('/invite/')
+
+  if (!authStore.isAuthenticated && !isPublicRoute) {
+    return navigateTo('/login')
+  }
+
+  if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/register')) {
+    return navigateTo('/')
+  }
+
+  // Mantém o user e suas permissões sempre atualizados
+  if (authStore.isAuthenticated && !isPublicRoute) {
+    await authStore.fetchMe()
+  }
+})
