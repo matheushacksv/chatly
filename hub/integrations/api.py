@@ -44,7 +44,7 @@ def create_instance(request, data: WhatsAppInstanceIn):
         organization=request.auth.organization,
         agent=agent,
         instance_name=data.name,
-        instance_api_key=result['data']['token']
+        instance_api_key=result['token']
     )
     return 201, instance
 

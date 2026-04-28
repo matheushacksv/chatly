@@ -17,7 +17,8 @@ def create_instance(name: str) -> dict:
         timeout=30.0,
         follow_redirects=True
     )
-    return response.json()
+    response.raise_for_status()
+    return {'token': token}
 
 def connect_instance(instance_api_key: str, webhook_url: str) -> dict:
     response = httpx.post(
