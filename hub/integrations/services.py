@@ -18,7 +18,8 @@ def create_instance(name: str) -> dict:
         follow_redirects=True
     )
     response.raise_for_status()
-    return {'token': token}
+    data = response.json().get('data', {})
+    return {'token': token, 'evogo_id': data.get('id', '')}
 
 def connect_instance(instance_api_key: str, webhook_url: str) -> dict:
     response = httpx.post(
@@ -67,9 +68,9 @@ def get_status(instance_api_key: str) -> dict:
     response.raise_for_status()
     return response.json()
 
-def delete_instance(instance_id: str, instance_api_key: str) -> None:
+def delete_instance(evogo_id: str, instance_api_key: str) -> None:
     response = httpx.delete(
-        f'{settings.EVOGO_BASE_URL}/instance/delete/{instance_id}',
+        f'{settings.EVOGO_BASE_URL}/instance/delete/{evogo_id}',
         headers=_global_headers(),
         follow_redirects=True,
         timeout=30.0,

@@ -4,9 +4,9 @@ from .models import WhatsAppInstance, PipedriveIntegration, AssignmentQueue, Ass
 
 @admin.register(WhatsAppInstance)
 class WhatsAppInstanceAdmin(admin.ModelAdmin):
-    list_display = ('name', 'organization', 'status', 'created_at')
+    list_display = ('instance_name', 'organization', 'status', 'created_at')
     list_filter = ('status',)
-    search_fields = ('name',)
+    search_fields = ('instance_name',)
 
 
 admin.site.register(PipedriveIntegration)

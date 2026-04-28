@@ -15,6 +15,7 @@ class WhatsAppInstance(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='whatsapp_instances')
     agent = models.OneToOneField(AIAgent, on_delete=models.SET_NULL, null=True, blank=True, related_name='whatsapp_instance')
     instance_name = models.CharField(max_length=255, unique=True)
+    evogo_id = models.CharField(max_length=100, blank=True)
     instance_api_key = models.TextField()
     phone_number = models.CharField(max_length=20, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DISCONNECTED)

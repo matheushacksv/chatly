@@ -47,6 +47,7 @@ def create_instance(request, data: WhatsAppInstanceIn):
         organization=request.auth.organization,
         agent=agent,
         instance_name=data.name,
+        evogo_id=result.get('evogo_id', ''),
         instance_api_key=result['token']
     )
     return 201, instance
@@ -142,15 +143,18 @@ def delete_instance(request, instance_id: int):
     except WhatsAppInstance.DoesNotExist:
         return 404, ErrorWithCodeSchema(detail='Instance not found', code='instance_not_found')
 
-    try:
-        evogo_services.logout_instance(instance.instance_api_key)
-    except Exception:
-        pass
+    import logging
+    logger = logging.getLogger(__name__)
 
     try:
-        evogo_services.delete_instance(instance.instance_name, instance.instance_api_key)
-    except Exception:
-        pass
+        evogo_services.logout_instance(instance.instance_api_key)
+    except Exception as e:
+        logger.warning('EvoGO logout failed for %s: %s', instance.instance_name, e)
+
+    try:
+        evogo_services.delete_instance(instance.evogo_id or instance.instance_name, instance.instance_api_key)
+    except Exception as e:
+        logger.warning('EvoGO delete failed for %s: %s', instance.instance_name, e)
 
     instance.delete()
     return 204, None

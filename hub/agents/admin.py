@@ -4,9 +4,9 @@ from .models import AIProvider, AIAgent, AgentDocument, AgentCustomTool, AgentMe
 
 @admin.register(AIProvider)
 class AIProviderAdmin(admin.ModelAdmin):
-    list_display = ('name', 'provider', 'organization')
-    list_filter = ('provider',)
-    search_fields = ('name',)
+    list_display = ('organization', 'provider_type')
+    list_filter = ('provider_type',)
+    search_fields = ('organization__name',)
 
 
 @admin.register(AIAgent)

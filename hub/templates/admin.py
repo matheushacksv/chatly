@@ -4,5 +4,5 @@ from .models import MessageTemplate
 
 @admin.register(MessageTemplate)
 class MessageTemplateAdmin(admin.ModelAdmin):
-    list_display = ('name', 'organization', 'created_at')
-    search_fields = ('name',)
+    list_display = ('title', 'organization', 'created_at')
+    search_fields = ('title',)
