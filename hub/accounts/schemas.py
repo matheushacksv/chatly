@@ -36,10 +36,10 @@ class UserPermissionsOut(Schema):
 
 class UserOut(Schema):
     id: int
-    name: str
+    name: Optional[str] = None
     email: str
     role: str
-    org_name: str
+    org_name: Optional[str] = None
     avatar: Optional[str] = None
     permissions: UserPermissionsOut = UserPermissionsOut()
 
