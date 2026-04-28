@@ -70,7 +70,7 @@ def get_status(instance_api_key: str) -> dict:
 def delete_instance(instance_id: str, instance_api_key: str) -> None:
     response = httpx.delete(
         f'{settings.EVOGO_BASE_URL}/instance/delete/{instance_id}',
-        headers=_instance_headers(instance_api_key),
+        headers=_global_headers(),
         follow_redirects=True,
         timeout=30.0,
     )

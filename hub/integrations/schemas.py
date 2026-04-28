@@ -1,12 +1,24 @@
+import re
 from typing import Any
 from ninja import Schema
 from typing import Optional
+from pydantic import field_validator
 
 #* ----- WhatsApp -----
 
 class WhatsAppInstanceIn(Schema):
     name: str
     agent_id: Optional[int] = None
+
+    @field_validator('name')
+    @classmethod
+    def sanitize_name(cls, v: str) -> str:
+        v = v.strip().lower()
+        v = re.sub(r'[^a-z0-9\-_]', '-', v)
+        v = re.sub(r'-+', '-', v).strip('-')
+        if not v:
+            raise ValueError('Nome inválido')
+        return v
 
 class WhatsAppInstanceOut(Schema):
     id: int

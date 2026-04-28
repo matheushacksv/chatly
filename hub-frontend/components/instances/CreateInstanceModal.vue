@@ -20,8 +20,13 @@ watch(() => props.open, async (val) => {
   }
 })
 
+const sanitizeName = (val: string) => {
+  return val.toLowerCase().replace(/[^a-z0-9\-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
+
 const submit = async () => {
   if (!form.name.trim()) return
+  form.name = sanitizeName(form.name)
   loading.value = true
   error.value = ''
   try {
@@ -65,6 +70,7 @@ const submit = async () => {
                   placeholder="minha-empresa-01"
                   required
                   class="input-field"
+                  @input="form.name = sanitizeName(form.name)"
                 />
               </div>
             </div>

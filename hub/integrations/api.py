@@ -38,7 +38,10 @@ def create_instance(request, data: WhatsAppInstanceIn):
     try:
         result = evogo_services.create_instance(data.name)
     except Exception as e:
-        return 400, ErrorWithCodeSchema(detail=f'Error in creating Whatsapp instance: {str(e)}', code='error_whatsapp')
+        msg = str(e)
+        if '409' in msg or '500' in msg:
+            return 400, ErrorWithCodeSchema(detail='Nome de instância já existe no servidor WhatsApp', code='instance_in_use')
+        return 400, ErrorWithCodeSchema(detail=f'Erro ao criar instância WhatsApp: {msg}', code='error_whatsapp')
 
     instance = WhatsAppInstance.objects.create(
         organization=request.auth.organization,
