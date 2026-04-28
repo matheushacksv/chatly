@@ -144,8 +144,8 @@ def delete_instance(request, instance_id: int):
 
     try:
         evogo_services.delete_instance(instance.instance_name, instance.instance_api_key)
-    except Exception as e:
-        return 400, ErrorWithCodeSchema(detail=f'Error in deleting instance: {str(e)}', code='instance_delete_error')
+    except Exception:
+        pass  # instance may not exist in EvoGO — delete locally regardless
 
     instance.delete()
     return 204, None
