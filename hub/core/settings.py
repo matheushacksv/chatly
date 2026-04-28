@@ -227,7 +227,8 @@ GROQ_API_KEY = config('GROQ_API_KEY')
 
 # CORS
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS').split(',')
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='').split(',') or CORS_ALLOWED_ORIGINS
+_csrf_raw = config('CSRF_TRUSTED_ORIGINS', default='')
+CSRF_TRUSTED_ORIGINS = _csrf_raw.split(',') if _csrf_raw else CORS_ALLOWED_ORIGINS
 
 # Proxy SSL
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
