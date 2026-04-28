@@ -1,14 +1,7 @@
 export default defineNuxtConfig({
   ssr: false,
-
   devtools: { enabled: true },
-
-  modules: [
-    '@nuxtjs/tailwindcss',
-    '@pinia/nuxt',
-    '@vueuse/nuxt'
-  ],
-
+  modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt', '@vueuse/nuxt', '@sentry/nuxt/module'],
   css: ['~/assets/css/main.css'],
 
   app: {
@@ -28,4 +21,13 @@ export default defineNuxtConfig({
   },
 
   compatibilityDate: '2024-11-01',
+
+  sentry: {
+    org: 'hack-softwares',
+    project: 'chatly-frontend',
+  },
+
+  sourcemap: {
+    client: 'hidden',
+  },
 })

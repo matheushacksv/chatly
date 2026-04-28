@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import * as Sentry from '@sentry/nuxt'
 
 const authStore = useAuthStore()
 const route = useRoute()
@@ -9,6 +10,14 @@ const { hiddenPaths, orderedAllItems } = useSidebarNav()
 
 const closeOnMobile = () => {
   if (window.innerWidth < 768) close()
+}
+
+const isActive = (path: string) => route.path === path || route.path.startsWith(path + '/')
+
+const orgOpen = ref(false)
+const orgSwitcherRef = ref<HTMLElement>()
+const closeOrgSwitcher = (e: MouseEvent) => {
+  if (orgSwitcherRef.value && !orgSwitcherRef.value.contains(e.target as Node)) orgOpen.value = false
 }
 
 const isOwnerOrAdmin = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''))
@@ -37,29 +46,29 @@ const overflowRef = ref<HTMLElement>()
 const closeOverflow = (e: MouseEvent) => {
   if (overflowRef.value && !overflowRef.value.contains(e.target as Node)) showOverflow.value = false
 }
-onMounted(() => document.addEventListener('click', closeOverflow))
-onUnmounted(() => document.removeEventListener('click', closeOverflow))
-
-watch(() => route.path, () => { showOverflow.value = false })
-
-const isActive = (to: string) => {
-  if (to === '/') return route.path === '/'
-  return route.path.startsWith(to)
+const router = useRouter()
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/login')
 }
 
-const handleLogout = () => {
-  authStore.logout()
-  navigateTo('/login')
+const openFeedback = async () => {
+  const feedback = Sentry.getFeedback()
+  if (feedback) {
+    const form = await feedback.createForm()
+    form.appendToDom()
+    form.open()
+  }
 }
 
-const orgOpen = ref(false)
-const orgSwitcherRef = ref<HTMLElement>()
-
-const closeOrgSwitcher = (e: MouseEvent) => {
-  if (orgSwitcherRef.value && !orgSwitcherRef.value.contains(e.target as Node)) orgOpen.value = false
-}
-onMounted(() => document.addEventListener('click', closeOrgSwitcher))
-onUnmounted(() => document.removeEventListener('click', closeOrgSwitcher))
+onMounted(() => {
+  document.addEventListener('click', closeOverflow)
+  document.addEventListener('click', closeOrgSwitcher)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeOverflow)
+  document.removeEventListener('click', closeOrgSwitcher)
+})
 </script>
 
 <template>
@@ -199,6 +208,17 @@ onUnmounted(() => document.removeEventListener('click', closeOrgSwitcher))
 
     <!-- User -->
     <div class="py-4 border-t border-white/5" :class="isCollapsed ? 'px-0' : 'px-4'">
+      <!-- Report Bug -->
+      <button
+        @click="openFeedback"
+        class="w-full flex items-center gap-3 py-2 text-neutral-500 hover:text-neutral-300 transition-colors mb-2"
+        :class="isCollapsed ? 'px-0 justify-center' : 'px-3'"
+        title="Reportar um bug"
+      >
+        <Icon icon="solar:bug-minimalistic-bold-duotone" class="text-lg shrink-0" />
+        <span v-if="!isCollapsed" class="font-mono text-[10px] uppercase tracking-widest flex-1 text-left">Reportar Bug</span>
+      </button>
+
       <div class="flex items-center" :class="isCollapsed ? 'flex-col gap-2' : 'gap-2.5'">
         <div class="w-7 h-7 shrink-0 border border-white/10 overflow-hidden">
           <img

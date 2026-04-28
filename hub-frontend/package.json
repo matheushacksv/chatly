@@ -12,6 +12,8 @@
   "dependencies": {
     "@iconify/vue": "^4.3.0",
     "@pinia/nuxt": "^0.10.1",
+    "@sentry/nuxt": "^10.50.0",
+    "@sentry/vue": "^10.50.0",
     "@vueuse/core": "^14.2.1",
     "@vueuse/nuxt": "^14.2.1",
     "md-editor-v3": "^6.4.2",
@@ -23,5 +25,8 @@
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.13.2",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "@vercel/nft": "^0.27.4"
   }
 }

@@ -1,7 +1,9 @@
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
-from celery.schedules import crontab
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -135,6 +137,15 @@ USE_TZ = True
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 STATIC_URL = 'static/'
+
+# Sentry
+
+sentry_sdk.init(
+    dsn=config('SENTRY_DSN', default=''),
+    integrations=[DjangoIntegration(), CeleryIntegration()],
+    traces_sample_rate=0.1,
+    send_default_pii=False
+)
 
 
 # Storages
