@@ -143,9 +143,14 @@ def delete_instance(request, instance_id: int):
         return 404, ErrorWithCodeSchema(detail='Instance not found', code='instance_not_found')
 
     try:
+        evogo_services.logout_instance(instance.instance_api_key)
+    except Exception:
+        pass
+
+    try:
         evogo_services.delete_instance(instance.instance_name, instance.instance_api_key)
     except Exception:
-        pass  # instance may not exist in EvoGO — delete locally regardless
+        pass
 
     instance.delete()
     return 204, None
