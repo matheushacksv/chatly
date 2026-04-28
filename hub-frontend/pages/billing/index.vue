@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Faturamento' })
+
 const api = useApi()
 const config = useRuntimeConfig()
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Etiquetas' })
+
 const labelsStore = useLabelsStore()
 const { confirm: confirmDialog } = useConfirm()
 

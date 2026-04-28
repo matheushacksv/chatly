@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Instâncias' })
+
 const api = useApi()
 const authStore = useAuthStore()
 

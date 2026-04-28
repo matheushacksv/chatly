@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Configurações' })
+
 const api = useApi()
 const authStore = useAuthStore()
 const { hiddenPaths, setHidden, navOrder, setOrder, orderedAllItems } = useSidebarNav()

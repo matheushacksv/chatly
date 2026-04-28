@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Campanhas' })
+
 const api = useApi()
 const router = useRouter()
 const { confirm: confirmDialog } = useConfirm()

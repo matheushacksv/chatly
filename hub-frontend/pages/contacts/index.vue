@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Contatos' })
+
 const api = useApi()
 const { confirm: confirmDialog } = useConfirm()
 

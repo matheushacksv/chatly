@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 
+useHead({ title: 'Conversas' })
+
 const api = useApi()
 const { permission, requestPermission } = useNotifications()
 const { has: hasUnread, total: totalUnread } = useUnread()
