@@ -10,34 +10,46 @@ from .schemas import WebhookPayload
 from conversations.utils.utils import upload_attachment
 from conversations.models import MessageAttachment
 from integrations.pipedrive_tasks import create_deal_from_conversation, sync_contact_to_pipedrive
+from . import services
 
 router = Router(tags=['Webhooks'])
+
+def _register_webhook(instance, services):
+    from django.conf import settings
+    webhook_url = f'{settings.BASE_URL}/api/webhooks/whatsapp/{instance.instance_name}/'
+    try:
+        services.connect_instance(instance_api_key=instance.instance_api_key, webhook_url=webhook_url)
+    except Exception:
+        pass
 
 @router.post('/{instance_name}/', auth=None)
 def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookPayload):
     event = payload.event
     data = payload.data or  {}
+
     
-    if event == 'PairSuccess':                                                                                                                                           
-      try:                                                                                                                                                             
-          instance = WhatsAppInstance.objects.get(instance_name=instance_name)                                                                                         
-          jid = data.get('jid', '') if isinstance(data, dict) else ''                                                                                                  
-          phone = jid.split(':')[0].split('@')[0]                                                                                                                      
-          if phone:                                                                                                                                                    
-              instance.phone_number = phone                                                                                                                            
-          instance.status = WhatsAppInstance.Status.CONNECTED                                                                                                          
-          instance.save()                                                                                                                                              
-      except WhatsAppInstance.DoesNotExist:                                                                                                                            
-          pass                                                                                                                                                         
-      return {'status': 'ok'}                                                                                                                                          
-                                                                                                                                                                     
+    if event == 'PairSuccess':
+        try:
+            instance = WhatsAppInstance.objects.get(instance_name=instance_name)
+            jid = data.get('jid', '') if isinstance(data, dict) else ''
+            phone = jid.split(':')[0].split('@')[0]
+            if phone:
+                instance.phone_number = phone
+            instance.status = WhatsAppInstance.Status.CONNECTED
+            instance.save()
+            _register_webhook(instance, services)
+        except WhatsAppInstance.DoesNotExist:
+            pass
+        return {'status': 'ok'}
+
     if event == 'Connected':
-        try:                                                                                                                                                             
-            instance = WhatsAppInstance.objects.get(instance_name=instance_name)                                                                                         
-            instance.status = WhatsAppInstance.Status.CONNECTED                                                                                                          
-            instance.save()                                                                                                                                              
-        except WhatsAppInstance.DoesNotExist:                                                                                                                            
-            pass                                                                                                                                                         
+        try:
+            instance = WhatsAppInstance.objects.get(instance_name=instance_name)
+            instance.status = WhatsAppInstance.Status.CONNECTED
+            instance.save()
+            _register_webhook(instance, services)
+        except WhatsAppInstance.DoesNotExist:
+            pass
         return {'status': 'ok'}                                                                                                                                          
                                                                                                                                                                        
     if event == 'LoggedOut':                                                                                                                                             

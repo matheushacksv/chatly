@@ -75,6 +75,47 @@ def transcribe_and_process_message(attachment_id: int):
     except Exception as e:
         logger.error(f'[transcribe_and_process_message] Erro ao enviar mensagem: {e}')
 
+@shared_task(bind=True, max_retries=3, soft_time_limit=45, time_limit=60)
+def send_whatsapp_message(self, message_id: int, instance_id: int = None):
+    from conversations.models import Message
+    from integrations.models import WhatsAppInstance
+
+    try:
+        message = Message.objects.select_related(
+            'conversation__contact',
+            'conversation__instance',
+            'conversation__agent__whatsapp_instance',
+            'conversation__organization',
+        ).get(id=message_id)
+
+        conv = message.conversation
+
+        if instance_id:
+            instance = WhatsAppInstance.objects.filter(id=instance_id, organization=conv.organization).first()
+        elif conv.instance_id:
+            instance = conv.instance
+        elif conv.agent_id and conv.agent:
+            instance = conv.agent.whatsapp_instance
+        else:
+            instance = WhatsAppInstance.objects.filter(
+                organization=conv.organization, status=WhatsAppInstance.Status.CONNECTED
+            ).first()
+
+        if not instance:
+            logger.warning('[send_whatsapp_message] instance not found for message %s', message_id)
+            return
+
+        send_message(
+            instance_api_key=instance.instance_api_key,
+            phone=conv.contact.phone,
+            text=message.content,
+        )
+
+    except Exception as exc:
+        logger.error('[send_whatsapp_message] failed for message %s: %s', message_id, exc)
+        raise self.retry(exc=exc, countdown=10)
+
+
 @shared_task(soft_time_limit=30, time_limit=60)
 def send_scheduled_message(message_id: int):
     from conversations.models import Message

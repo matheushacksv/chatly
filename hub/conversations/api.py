@@ -13,7 +13,7 @@ from typing import Optional
 from django.utils import timezone
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from .tasks import send_scheduled_message
+from .tasks import send_scheduled_message, send_whatsapp_message
 from integrations.pipedrive_tasks import close_deal_from_conversation
 import uuid
 from templates.models import MessageTemplate
@@ -304,16 +304,7 @@ def user_send_message(request, conversation_id: int, data: SendMessageIn, instan
     if data.scheduled_at:
         send_scheduled_message.apply_async(args=[message.id], eta=data.scheduled_at)
     else:
-        try:
-            instance = _get_instance(conversation, instance_id, request.auth.organization)
-            if instance:
-                send_message(
-                    instance_api_key=instance.instance_api_key,
-                    phone=conversation.contact.phone,
-                    text=data.content
-                )
-        except Exception as e:
-            logger.error(f'Erro ao enviar mensagem: {e}')
+        send_whatsapp_message.delay(message.id, instance_id)
 
     return 201, message
         

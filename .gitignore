@@ -12,3 +12,6 @@ Thumbs.db
 **/.env
 **/.env.local
 **/.env.*.local
+
+# Http requests
+evoteste.http
