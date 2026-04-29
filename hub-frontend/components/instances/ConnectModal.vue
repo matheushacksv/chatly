@@ -151,7 +151,7 @@ const getPairCode = async () => {
       }
     }, 15000)
   } catch (e: any) {
-    pairError.value = e?.data?.detail || 'Erro ao gerar código de par'
+    pairError.value = e?.data?.detail || 'Erro ao gerar código de pareamento'
   } finally {
     pairLoading.value = false
   }
@@ -209,7 +209,7 @@ onUnmounted(() => clearIntervals())
               class="pb-3 text-xs font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px"
               :class="activeTab === 'pair' ? 'text-accent border-accent' : 'text-neutral-500 border-transparent hover:text-white'"
             >
-              Código de par
+              Código de pareamento
             </button>
           </div>
 
@@ -287,7 +287,7 @@ onUnmounted(() => clearIntervals())
 
             <template v-else>
               <p class="text-xs font-mono text-neutral-500 mb-6 leading-relaxed">
-                Use o código de par para conectar sem escanear:<br />
+                Use o código de pareamento para conectar sem escanear:<br />
                 <span class="text-neutral-600">WhatsApp → Configurações → Aparelhos conectados → Vincular com número</span>
               </p>
 

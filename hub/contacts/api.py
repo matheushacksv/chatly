@@ -125,8 +125,11 @@ def update_contact(request, contact_id: int, data: ContactIn):
 
 @router.post('/{contact_id}/labels', response={200: ContactOut})
 def set_contact_labels(request, contact_id: int, data: SetLabelsIn):
+    from conversations.models import Conversation
     contact = get_object_or_404(Contact, id=contact_id, organization=request.auth.organization)
     contact.labels.set(data.label_ids)
+    for conv in Conversation.objects.filter(contact=contact, organization=request.auth.organization, status=Conversation.Status.OPEN):
+        conv.labels.set(data.label_ids)
     return contact
 
 @router.delete('/{contact_id}', response={204: None, 404: GenericErrorSchema})

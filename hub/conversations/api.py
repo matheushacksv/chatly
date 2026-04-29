@@ -5,7 +5,6 @@ from labels.schemas import SetLabelsIn
 from contacts.models import Contact
 from integrations.models import WhatsAppInstance
 from ninja import Router, Query, File, Form
-
 from django.db.models import OuterRef, Subquery
 from .consumers import notify_new_conversation, notify_conversation_list_updated
 from ninja.files import UploadedFile
@@ -28,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = Router(tags=['Conversations'])
 
+ALLOWED_MEDIA_TYPES = {'image', 'audio', 'document', 'video', 'sticker'}
 
 def _get_instance(conversation, override_instance_id, organization):
     if override_instance_id:
@@ -247,6 +247,7 @@ def update_conversation(request, conversation_id: int, data: UpdateConversationI
 def set_conversation_labels(request, conversation_id: int, data: SetLabelsIn):
     conversation = get_object_or_404(Conversation, id=conversation_id, organization=request.auth.organization)
     conversation.labels.set(data.label_ids)
+    conversation.contact.labels.set(data.label_ids)
     return conversation
 
 @router.delete('/{conversation_id}', response={204: None, 403: ErrorWithCodeSchema})
@@ -309,9 +310,6 @@ def user_send_message(request, conversation_id: int, data: SendMessageIn, instan
     return 201, message
         
     
-
-ALLOWED_MEDIA_TYPES = {'image', 'audio', 'document', 'video', 'sticker'}
-
 
 @router.post('/{conversation_id}/messages/media', response={201: MessageOut, 404: GenericErrorSchema, 400: ErrorWithCodeSchema})
 def user_send_media(
