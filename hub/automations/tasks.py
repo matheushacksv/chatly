@@ -1,0 +1,53 @@
+import logging
+from celery import shared_task
+from django.utils import timezone
+
+from .models import AutomationRun
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, soft_time_limit=60, time_limit=90)
+def run_automation(self, run_id: int):
+    from .actions import execute_action
+
+    try:
+        run = AutomationRun.objects.select_related('automation').get(id=run_id)
+    except AutomationRun.DoesNotExist:
+        logger.warning('[run_automation] run %s não encontrado', run_id)
+        return
+
+    if run.status != AutomationRun.Status.RUNNING:
+        return
+
+    steps = list(run.automation.steps.order_by('order'))
+    organization_id = run.automation.organization_id
+
+    for step in steps[run.current_step:]:
+        try:
+            if step.action_type == 'wait_delay':
+                seconds = int(step.config.get('seconds', 60))
+                run.current_step = run.current_step + 1
+                run.save(update_fields=['current_step'])
+                run_automation.apply_async(args=[run.id], countdown=seconds)
+                return
+
+            context = dict(run.context or {})
+            context['from_automation'] = True
+            execute_action(step, context, organization_id)
+            run.current_step = run.current_step + 1
+            run.save(update_fields=['current_step'])
+
+        except Exception as exc:
+            logger.error('[run_automation] run %s step %s falhou: %s', run.id, step.order, exc)
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc, countdown=10 * (2 ** self.request.retries))
+            run.status = AutomationRun.Status.FAILED
+            run.error = str(exc)
+            run.finished_at = timezone.now()
+            run.save(update_fields=['status', 'error', 'finished_at'])
+            return
+
+    run.status = AutomationRun.Status.COMPLETED
+    run.finished_at = timezone.now()
+    run.save(update_fields=['status', 'finished_at'])

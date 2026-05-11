@@ -14,6 +14,7 @@ from templates.api import router as templates_router
 from labels.api import router as labels_router
 from campaigns.api import router as campaigns_router
 from billing.api import router as billing_router, admin_router as billing_admin_router
+from automations.api import router as automations_router
 
 api = NinjaAPI(auth=JWTAuth())
 
@@ -31,3 +32,4 @@ api.add_router('labels/', labels_router)
 api.add_router('campaigns/', campaigns_router)
 api.add_router('billing/', billing_router)
 api.add_router('admin/billing/', billing_admin_router)
+api.add_router('automations/', automations_router)

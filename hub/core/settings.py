@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     'templates',
     'labels',
     'campaigns',
-    'billing'
+    'billing',
+    'automations',
 ]
 
 MIDDLEWARE = [
@@ -201,7 +202,6 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TASK_ROUTES = {
     'conversations.tasks.process_message': {'queue': 'ai'},
     'conversations.tasks.transcribe_and_process_message': {'queue': 'ai'},
-    '*': {'queue': 'default'}
 }
 
 CELERY_BEAT_SCHEDULE = {

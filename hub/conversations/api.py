@@ -228,9 +228,11 @@ def update_conversation(request, conversation_id: int, data: UpdateConversationI
     except Conversation.DoesNotExist:
         return 404, ErrorWithCodeSchema(detail='Conversation not found', code='conversation_not_found')
 
+    triggered_close = False
     if data.status is not None:
         if data.status == Conversation.Status.CLOSED and conversation.status != Conversation.Status.CLOSED:
             conversation.ended_at = timezone.now()
+            triggered_close = True
             if PipedriveIntegration.objects.filter(organization=request.auth.organization, is_active=True).exists():
                 close_deal_from_conversation.delay(conversation.id)
         conversation.status = data.status
@@ -241,6 +243,16 @@ def update_conversation(request, conversation_id: int, data: UpdateConversationI
 
     conversation.save()
     notify_conversation_list_updated(conversation)
+
+    if triggered_close:
+        from automations.events import trigger_event
+        trigger_event(
+            'conversation.closed',
+            request.auth.organization_id,
+            conversation_id=conversation.id,
+            contact_id=conversation.contact_id,
+        )
+
     return conversation
 
 @router.post('/{conversation_id}/labels', response={200: ConversationOut})

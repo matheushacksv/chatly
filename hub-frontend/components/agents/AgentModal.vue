@@ -29,10 +29,22 @@ const MODELS: Record<string, string[]> = {
     'claude-3-opus-20240229',
   ],
   groq: [
-    'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant',
-    'llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768',
-    'gemma2-9b-it', 'gemma-7b-it',
+    'llama-3.3-70b-versatile', 'llama-3.1-70b-versatile',
+    'llama-3.1-8b-instant', 'llama3-70b-8192', 'llama3-8b-8192',
+    'mixtral-8x7b-32768', 'gemma2-9b-it', 'gemma-7b-it',
   ],
+}
+
+const GROQ_TOOL_OK = new Set([
+  'llama-3.3-70b-versatile',
+  'llama-3.1-70b-versatile',
+])
+
+function modelLabel(provider: string, model: string) {
+  if (provider === 'groq' && !GROQ_TOOL_OK.has(model)) {
+    return `${model}  *modelos erram em tools`
+  }
+  return model
 }
 
 // ---------------------------------------------------------------------------
@@ -462,7 +474,7 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                   <label class="field-label">Modelo</label>
                   <div class="bg-surface border border-white/10 rounded-full py-2.5 pl-5 pr-3 hover:border-accent/50 transition-colors">
                     <select v-model="form.model_name" class="bg-transparent border-none outline-none text-white text-sm w-full font-mono appearance-none cursor-pointer">
-                      <option v-for="m in availableModels" :key="m" :value="m" class="bg-surface text-white">{{ m }}</option>
+                      <option v-for="m in availableModels" :key="m" :value="m" class="bg-surface text-white">{{ modelLabel(selectedProviderType, m) }}</option>
                     </select>
                   </div>
                 </div>

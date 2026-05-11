@@ -6,6 +6,7 @@ export const allNavItems = [
   { label: 'Campanhas',     icon: 'solar:screencast-outline',                 to: '/campaigns' },
   { label: 'Templates',     icon: 'solar:document-text-bold-duotone',       to: '/templates' },
   { label: 'Etiquetas',     icon: 'solar:tag-bold-duotone',                 to: '/labels' },
+  { label: 'Automações',    icon: 'solar:bolt-circle-bold-duotone',         to: '/automations' },
   { label: 'Instâncias',    icon: 'solar:smartphone-2-bold-duotone',        to: '/instances', ownerAdminOnly: true },
   { label: 'Organização',   icon: 'solar:buildings-2-bold-duotone',         to: '/org',       ownerAdminOnly: true },
   { label: 'Plano',       icon: 'solar:card-bold-duotone',                to: '/billing',   ownerAdminOnly: true },
