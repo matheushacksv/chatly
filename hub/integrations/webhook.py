@@ -97,6 +97,8 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
     if created:
         if PipedriveIntegration.objects.filter(organization=organization, is_active=True).exists():
             sync_contact_to_pipedrive.delay(contact.id)
+        from automations.events import trigger_event
+        trigger_event('contact.created', organization.id, contact_id=contact.id)
 
     from django.db.models import Max
 
@@ -134,6 +136,11 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
             pass
         if PipedriveIntegration.objects.filter(organization=organization, is_active=True).exists():
             create_deal_from_conversation.delay(conversation.id)
+        from automations.events import trigger_event
+        trigger_event(
+            'conversation.created', organization.id,
+            conversation_id=conversation.id, contact_id=contact.id,
+        )
     else:
         update_fields = []
         if not conversation.agent and instance.agent:
@@ -149,6 +156,12 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
         conversation=conversation,
         role=Message.Role.USER,
         content=text
+    )
+
+    from automations.events import trigger_event
+    trigger_event(
+        'message.received', organization.id,
+        message_id=message.id, conversation_id=conversation.id, contact_id=contact.id,
     )
 
     if info.get('Type') == 'media':

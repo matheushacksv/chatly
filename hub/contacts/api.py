@@ -106,6 +106,10 @@ def create_contact(request, data: ContactIn):
 
     if PipedriveIntegration.objects.filter(organization=request.auth.organization, is_active=True).exists():
         sync_contact_to_pipedrive.delay(contact.id)
+
+    from automations.events import trigger_event
+    trigger_event('contact.created', request.auth.organization_id, contact_id=contact.id)
+
     return 201, contact
 
 @router.patch('/{contact_id}', response={200: ContactOut, 400: GenericErrorSchema})
