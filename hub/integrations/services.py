@@ -21,16 +21,18 @@ def create_instance(name: str) -> dict:
     data = response.json().get('data', {})
     return {'token': token, 'evogo_id': data.get('id', '')}
 
-def connect_instance(instance_api_key: str, webhook_url: str, phone_number: str) -> dict:
+def connect_instance(instance_api_key: str, webhook_url: str, phone_number: str = '') -> dict:
+    payload = {
+        'immediate': True,
+        'subscribe': ['MESSAGE', 'CONNECTION'],
+        'webhookUrl': webhook_url,
+    }
+    if phone_number:
+        payload['phone_number'] = phone_number
     response = httpx.post(
         f'{settings.EVOGO_BASE_URL}/instance/connect/',
         headers=_instance_headers(instance_api_key),
-        json={
-            'immediate': True,
-            'subscribe': ['MESSAGE', 'CONNECTION'],
-            'phone_number': phone_number,
-            'webhookUrl': webhook_url
-        },
+        json=payload,
         timeout=30.0,
         follow_redirects=True
     )
