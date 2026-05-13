@@ -17,6 +17,24 @@ def extract_template_params(url: str, body: str) -> list[str]:
     params.update(re.findall(pattern, body or ''))
     return sorted(params)
 
+def _build_goal_tool(agent, conversation, contact):
+    slots = agent.goal_slots or []
+    slots_keys = [s['key'] for s in slots]
+
+    def mark_goal_completed(reason: str, collected: dict = None) -> str:
+        '''Chame quando objetivo cumprido.
+        Args:
+            reason: justificativa curta.
+            collected: dict {slot_key: valor} dos dados coletados.
+        '''
+        from agents.services import handle_goal_completion
+        handle_goal_completion(agent, conversation, contact, reason=reason, collected=collected or {})
+        return 'goal_marked_completed'
+    
+    mark_goal_completed.__doc__ = (
+        f'{agent.goal_description}\nSlots esperados: {slots_keys}'
+    )
+    return mark_goal_completed
 
 def _fill_template(template: str, kwargs: dict) -> str:
     """Substitui {variavel} no template usando regex, sem usar str.format().
@@ -69,7 +87,7 @@ def {tool.name}({param_str}):
     return fn
 
 
-def get_tools_for_agent(agent) -> list:
+def get_tools_for_agent(agent, conversation=None, contact=None) -> list:
     tools = []
 
     for name in agent.enabled_tools:
@@ -79,6 +97,9 @@ def get_tools_for_agent(agent) -> list:
 
     for custom_tool in agent.custom_tools.filter(is_active=True):
         tools.append(build_http_function(custom_tool))
+
+    if agent.goal_enabled and conversation is not None and contact is not None:
+        tools.append(_build_goal_tool(agent, conversation, contact))
 
     return tools
 

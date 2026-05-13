@@ -37,6 +37,20 @@ class AIAgent(models.Model):
     max_follow_ups = models.PositiveIntegerField(default=3)
     follow_up_prompt = models.TextField(blank=True, default='')
     follow_up_respect_hours = models.BooleanField(default=False)
+    goal_enabled = models.BooleanField(default=False)
+    goal_description = models.TextField(blank=True, default='')
+    goal_slots = models.JSONField(default=list, blank=True)
+
+    GOAL_ACTION_CHOICES = [
+        ('deactivate_ai', 'Desativar IA'),
+        ('close_conversation', 'Fechar conversa'),
+        ('assign_to_user', 'Atribuir a usuário'),
+        ('trigger_automation', 'Disparar automação')
+    ]
+    goal_action = models.CharField(choices=GOAL_ACTION_CHOICES, blank=True, default='')
+    goal_assign_to = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='goal_assignments')
+    goal_final_message = models.TextField(blank=True, default='')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -88,3 +102,14 @@ class AgentMembership(models.Model):
 
     def __str__(self):
         return f'{self.user} → {self.agent}'
+
+class GoalCompletion(models.Model):
+    agent = models.ForeignKey(AIAgent, on_delete=models.CASCADE, related_name='completions')
+    conversation = models.ForeignKey('conversations.Conversation', on_delete=models.CASCADE, related_name='goal_completions')
+    contact = models.ForeignKey('contacts.Contact', on_delete=models.CASCADE)
+    collected_data = models.JSONField(default=dict)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['agent', '-created_at'])]
