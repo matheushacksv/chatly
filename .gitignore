@@ -19,3 +19,6 @@ evoteste.http
 # TODO
 TODO.md
 AGENTS.md
+# Backups locais
+chatly-dump.sql
+*.env.bak
