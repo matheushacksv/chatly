@@ -114,13 +114,13 @@ onMounted(fetchAll)
       >
         <button
           @click="toggle(a)"
-          class="w-10 h-5 rounded-full relative transition-colors shrink-0"
+          class="w-10 h-5 rounded-full relative transition-colors shrink-0 p-0.5"
           :class="a.is_active ? 'bg-accent' : 'bg-white/10'"
           :title="a.is_active ? 'Desativar' : 'Ativar'"
         >
           <span
-            class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-            :class="a.is_active ? 'translate-x-5' : 'translate-x-0.5'"
+            class="block w-4 h-4 rounded-full bg-white transition-transform"
+            :class="a.is_active ? 'translate-x-5' : 'translate-x-0'"
           ></span>
         </button>
 
