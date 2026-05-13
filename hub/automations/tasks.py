@@ -38,6 +38,13 @@ def run_automation(self, run_id: int):
             run.current_step = run.current_step + 1
             run.save(update_fields=['current_step'])
 
+        except ValueError as exc:
+            logger.error('[run_automation] run %s step %s config inválida (terminal): %s', run.id, step.order, exc)
+            run.status = AutomationRun.Status.FAILED
+            run.error = str(exc)
+            run.finished_at = timezone.now()
+            run.save(update_fields=['status', 'error', 'finished_at'])
+            return
         except Exception as exc:
             logger.error('[run_automation] run %s step %s falhou: %s', run.id, step.order, exc)
             if self.request.retries < self.max_retries:
