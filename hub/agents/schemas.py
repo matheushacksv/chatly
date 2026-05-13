@@ -32,6 +32,10 @@ class AIAgentIn(Schema):
     goal_action: str = ''
     goal_assign_to_id: Optional[int] = None
     goal_final_message: str = ''
+    split_messages_enabled: bool = False
+    split_typing_speed_ms_per_char: int = 35
+    split_min_delay_ms: int = 600
+    split_max_delay_ms: int = 3500
 
 class AIAgentOut(Schema):
     id: int
@@ -55,6 +59,10 @@ class AIAgentOut(Schema):
     goal_action: str = ''
     goal_assign_to_id: Optional[int] = None
     goal_final_message: str = ''
+    split_messages_enabled: bool = False
+    split_typing_speed_ms_per_char: int = 35
+    split_min_delay_ms: int = 600
+    split_max_delay_ms: int = 3500
 
 class GoalCompletionOut(Schema):
     id: int
