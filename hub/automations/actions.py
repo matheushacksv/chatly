@@ -64,19 +64,32 @@ def _resolve_instance_id(config: dict, conv, organization_id: int):
 
 @register('send_message')
 def _send_message(config: dict, run_context: dict, organization_id: int):
-    from conversations.models import Message
+    from conversations.models import Message, Conversation
     from conversations.tasks import send_whatsapp_message
+    from integrations.models import WhatsAppInstance
 
     conv = _get_conversation(run_context, organization_id)
+    contact = _get_contact(run_context, organization_id) if conv is None else conv.contact
+
+    if conv is None and contact is None:
+        raise ValueError('send_message: contexto sem conversation_id nem contact_id — automação mal configurada para esse trigger')
+
     if conv is None:
-        contact = _get_contact(run_context, organization_id)
-        if contact is None:
-            raise RuntimeError('send_message: contato/conversa não encontrados no contexto')
-        from conversations.models import Conversation
+        configured_instance_id = config.get('instance_id')
+        if configured_instance_id:
+            inst = WhatsAppInstance.objects.filter(id=configured_instance_id, organization_id=organization_id).first()
+        else:
+            inst = WhatsAppInstance.objects.filter(
+                organization_id=organization_id,
+                status=WhatsAppInstance.Status.CONNECTED,
+            ).first()
+        if inst is None:
+            raise ValueError('send_message: nenhuma instância WhatsApp disponível para abrir conversa')
         conv = Conversation.objects.create(
             organization_id=organization_id,
             contact=contact,
             status=Conversation.Status.OPEN,
+            instance=inst,
         )
 
     instance_id = _resolve_instance_id(config, conv, organization_id)
