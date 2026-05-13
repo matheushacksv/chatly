@@ -61,7 +61,7 @@ const AVAILABLE_TOOLS = [
 // ---------------------------------------------------------------------------
 // Estado
 // ---------------------------------------------------------------------------
-type Tab = 'geral' | 'conhecimento' | 'ferramentas' | 'memoria' | 'followup' | 'objetivo'
+type Tab = 'geral' | 'conhecimento' | 'ferramentas' | 'memoria' | 'followup' | 'objetivo' | 'envio'
 
 const tab = ref<Tab>('geral')
 
@@ -86,6 +86,10 @@ const form = reactive({
   goal_action: '' as '' | 'deactivate_ai' | 'close_conversation' | 'assign_to_user' | 'trigger_automation',
   goal_assign_to_id: null as number | null,
   goal_final_message: '',
+  split_messages_enabled: false,
+  split_typing_speed_ms_per_char: 35,
+  split_min_delay_ms: 600,
+  split_max_delay_ms: 3500,
 })
 
 const members = ref<any[]>([])
@@ -174,6 +178,10 @@ watch(() => props.open, (val) => {
     form.goal_action          = props.agent.goal_action          ?? ''
     form.goal_assign_to_id    = props.agent.goal_assign_to_id    ?? null
     form.goal_final_message   = props.agent.goal_final_message   ?? ''
+    form.split_messages_enabled         = props.agent.split_messages_enabled         ?? false
+    form.split_typing_speed_ms_per_char = props.agent.split_typing_speed_ms_per_char ?? 35
+    form.split_min_delay_ms             = props.agent.split_min_delay_ms             ?? 600
+    form.split_max_delay_ms             = props.agent.split_max_delay_ms             ?? 3500
   } else {
     form.name         = ''
     form.description  = ''
@@ -195,6 +203,10 @@ watch(() => props.open, (val) => {
     form.goal_action          = ''
     form.goal_assign_to_id    = null
     form.goal_final_message   = ''
+    form.split_messages_enabled         = false
+    form.split_typing_speed_ms_per_char = 35
+    form.split_min_delay_ms             = 600
+    form.split_max_delay_ms             = 3500
   }
 })
 
@@ -241,6 +253,10 @@ const submit = async () => {
       error.value = 'Selecione o operador para atribuição.'
       return
     }
+  }
+  if (form.split_messages_enabled && form.split_min_delay_ms > form.split_max_delay_ms) {
+    error.value = 'Delay mínimo deve ser menor ou igual ao delay máximo.'
+    return
   }
   loading.value = true
   error.value = ''
@@ -472,7 +488,7 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
           <!-- Tabs -->
           <div class="flex border-b border-white/5 px-6 shrink-0">
             <button
-              v-for="[key, label] in [['geral','Geral'],['conhecimento','Conhecimento'],['ferramentas','Ferramentas'],['memoria','Memória'],['followup','Follow-up'],['objetivo','Objetivo']]"
+              v-for="[key, label] in [['geral','Geral'],['conhecimento','Conhecimento'],['ferramentas','Ferramentas'],['memoria','Memória'],['followup','Follow-up'],['objetivo','Objetivo'],['envio','Envio']]"
               :key="key"
               @click="key === 'geral' || !tabsDisabled ? tab = key as Tab : null"
               class="pb-2.5 mr-5 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px"
@@ -1175,6 +1191,102 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                 <p class="text-xs font-mono text-neutral-700">Objetivo desativado</p>
                 <p class="text-[10px] font-mono text-neutral-700 mt-1 max-w-xs">
                   Ligue o toggle acima para configurar quando a IA deve parar e o que fazer ao concluir
+                </p>
+              </div>
+            </div>
+
+            <!-- ===================== ABA ENVIO ===================== -->
+            <div v-else-if="tab === 'envio'" class="space-y-4">
+
+              <div class="bg-blue-500/5 border border-blue-500/20 px-4 py-3">
+                <div class="flex items-start gap-2">
+                  <Icon icon="solar:info-circle-bold-duotone" class="text-base text-blue-400 shrink-0 mt-0.5" />
+                  <p class="text-[11px] font-mono text-blue-200/80 leading-relaxed">
+                    Divide respostas longas da IA em várias mensagens menores, simulando digitação humana.
+                    Cada frase chega como uma bolha separada no WhatsApp, com pausa entre elas proporcional ao tamanho.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Toggle habilitar -->
+              <div class="flex items-center justify-between py-3 border-b border-white/5">
+                <div>
+                  <p class="text-sm text-white">Dividir resposta em mensagens</p>
+                  <p class="text-[10px] font-mono text-neutral-600 mt-0.5">
+                    Quebra por frase (. ? !) e envia uma mensagem por vez
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="form.split_messages_enabled = !form.split_messages_enabled"
+                  class="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+                  :class="form.split_messages_enabled ? 'bg-accent' : 'bg-neutral-800'"
+                >
+                  <span
+                    class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    :class="form.split_messages_enabled ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </button>
+              </div>
+
+              <Transition name="fade">
+                <div v-if="form.split_messages_enabled" class="space-y-4">
+
+                  <div>
+                    <label class="field-label">Velocidade de digitação <span class="text-neutral-700 normal-case">(ms por caractere)</span></label>
+                    <div class="input-wrapper">
+                      <input
+                        v-model.number="form.split_typing_speed_ms_per_char"
+                        type="number" min="10" max="80"
+                        class="input-field"
+                      />
+                    </div>
+                    <p class="text-[10px] font-mono text-neutral-700 mt-1">
+                      Menor = digita mais rápido. Padrão 35ms (~280 chars/seg).
+                    </p>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="field-label">Delay mínimo <span class="text-neutral-700 normal-case">(ms)</span></label>
+                      <div class="input-wrapper">
+                        <input
+                          v-model.number="form.split_min_delay_ms"
+                          type="number" min="100" max="10000" step="100"
+                          class="input-field"
+                        />
+                      </div>
+                      <p class="text-[10px] font-mono text-neutral-700 mt-1">Pausa mínima entre mensagens</p>
+                    </div>
+                    <div>
+                      <label class="field-label">Delay máximo <span class="text-neutral-700 normal-case">(ms)</span></label>
+                      <div class="input-wrapper">
+                        <input
+                          v-model.number="form.split_max_delay_ms"
+                          type="number" min="500" max="20000" step="100"
+                          class="input-field"
+                        />
+                      </div>
+                      <p class="text-[10px] font-mono text-neutral-700 mt-1">Pausa máxima entre mensagens</p>
+                    </div>
+                  </div>
+
+                  <div class="bg-accent/5 border border-accent/20 px-4 py-3">
+                    <p class="text-[11px] font-mono text-accent/80 leading-relaxed">
+                      Exemplo: resposta "Boa noite! Tudo bem? Como posso ajudar?" será enviada em
+                      <strong class="text-accent">3 mensagens</strong>, com pausa de
+                      <strong class="text-accent">{{ form.split_min_delay_ms }}–{{ form.split_max_delay_ms }}ms</strong>
+                      entre elas, proporcional ao tamanho da próxima frase.
+                    </p>
+                  </div>
+                </div>
+              </Transition>
+
+              <div v-if="!form.split_messages_enabled" class="flex flex-col items-center justify-center py-8 text-center">
+                <Icon icon="solar:chat-line-bold-duotone" class="text-3xl text-white/10 mb-2" />
+                <p class="text-xs font-mono text-neutral-700">Envio em mensagem única</p>
+                <p class="text-[10px] font-mono text-neutral-700 mt-1 max-w-xs">
+                  A IA envia a resposta inteira em uma só bolha do WhatsApp
                 </p>
               </div>
             </div>

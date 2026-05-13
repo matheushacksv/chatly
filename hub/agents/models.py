@@ -51,6 +51,11 @@ class AIAgent(models.Model):
     goal_assign_to = models.ForeignKey('accounts.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='goal_assignments')
     goal_final_message = models.TextField(blank=True, default='')
 
+    split_messages_enabled = models.BooleanField(default=False)
+    split_typing_speed_ms_per_char = models.PositiveIntegerField(default=35)
+    split_min_delay_ms = models.PositiveIntegerField(default=600)
+    split_max_delay_ms = models.PositiveIntegerField(default=3500)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

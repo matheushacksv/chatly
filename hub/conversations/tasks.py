@@ -190,28 +190,61 @@ def process_message(message_id: int):
         logger.warning('[process_message] Agno retornou response text vazio')
         return
 
-    assistant_message = Message.objects.create(
-        conversation=conversation,
-        role=Message.Role.ASSISTANT,
-        content=response_text
-    )
+    agent = conversation.agent
+    try:
+        instance = agent.whatsapp_instance
+    except Exception as e:
+        logger.error(f'[process_message] Erro ao obter instância: {e}')
+        return
+
+    if agent.split_messages_enabled:
+        from conversations.utils.splitter import split_response, compute_delay_ms
+        chunks = split_response(response_text)
+    else:
+        chunks = [response_text]
+
+    if len(chunks) <= 1:
+        assistant_message = Message.objects.create(
+            conversation=conversation,
+            role=Message.Role.ASSISTANT,
+            content=response_text
+        )
+        notify_new_message(conversation.id, assistant_message)
+        send_message(instance_api_key=instance.instance_api_key, phone=conversation.contact.phone, text=response_text)  
+    else:
+        deliver_split_messages.delay(
+            conversation_id=conversation.id,
+            instance_id=instance.id,
+            chunks=chunks
+        )
 
     if conversation.agent and conversation.agent.follow_up_enabled:
         Conversation.objects.filter(id=conversation.id).update(
             next_follow_up_at=timezone.now() + timedelta(minutes=conversation.agent.follow_up_delay)
         )
 
-    notify_new_message(conversation.id, assistant_message)
-
-    try:
-        instance = conversation.agent.whatsapp_instance
-    except Exception as e:
-        logger.error(f'[process_message] Erro ao obter instância: {e}')
-        return
-
-    send_message(instance_api_key=instance.instance_api_key, phone=conversation.contact.phone, text=response_text)
-
     return 200
+
+@shared_task
+def deliver_split_messages(conversation_id, instance_id, chunks):
+    import time
+    from conversations.models import Message, Conversation
+    from integrations.models import WhatsAppInstance
+    from integrations.services import send_message
+    from conversations.utils.splitter import compute_delay_ms
+
+    conv = Conversation.objects.select_related('agent', 'contact').get(id=conversation_id)
+    instance = WhatsAppInstance.objects.get(id=instance_id)
+    agent = conv.agent
+    phone = conv.contact.phone
+
+    for i, chunk in enumerate(chunks):
+        delay = compute_delay_ms(chunk, agent.split_typing_speed_ms_per_char, agent.split_min_delay_ms, agent.split_max_delay_ms)
+        time.sleep(delay / 1000)
+
+        msg = Message.objects.create(conversation=conv, role=Message.Role.ASSISTANT, content=chunk)
+        notify_new_message(conv.id, msg)
+        send_message(instance_api_key=instance.instance_api_key, phone=phone, text=chunk)
 
 def _call_agno(agent_config, history, attachments=None, conversation=None, contact=None):
     from agno.agent import Agent
