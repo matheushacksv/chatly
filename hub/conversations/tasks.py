@@ -51,7 +51,7 @@ def transcribe_and_process_message(attachment_id: int):
         history[-1]['content'] = f'[Audio]: {transcription}'
 
     try:
-        response_text = _call_agno(conversation.agent, history)
+        response_text = _call_agno(conversation.agent, history, conversation=conversation, contact=conversation.contact)
     except Exception as e:
         logger.error(f'[transcribe_and_process_message] Erro no agno: {e}')
         return
@@ -181,7 +181,7 @@ def process_message(message_id: int):
     conversation.refresh_from_db(fields=['follow_up_count', 'next_follow_up_at'])
 
     try:
-        response_text = _call_agno(conversation.agent, history, attachments=attachments)
+        response_text = _call_agno(conversation.agent, history, attachments=attachments, conversation=conversation, contact=conversation.contact)
     except Exception as e:
         logger.error(f'[process_message] Erro no agno: {e}')
         return
@@ -213,7 +213,7 @@ def process_message(message_id: int):
 
     return 200
 
-def _call_agno(agent_config, history, attachments=None):
+def _call_agno(agent_config, history, attachments=None, conversation=None, contact=None):
     from agno.agent import Agent
     from agno.models.message import Message as AgnoMessage
     from agno.media import Image
@@ -227,10 +227,25 @@ def _call_agno(agent_config, history, attachments=None):
         chunks = '\n\n---\n\n'.join(d.content[:5000] for d in docs)
         rag_context = f'\n\n## Base de conhecimento\n{chunks}'
 
-    system = agent_config.system_prompt + rag_context
+    goal_context = ''
+    if agent_config.goal_enabled and agent_config.goal_description:
+        slots = agent_config.goal_slots or []
+        slots_lines = '\n'.join(
+            f'- {s.get("key")}: {s.get("label", "")}' + (' (obrigatório)' if s.get('required') else '')
+            for s in slots
+        )
+        goal_context = (
+            f'\n\n## OBJETIVO DESTA CONVERSA\n{agent_config.goal_description}'
+            + (f'\n\n### Dados a coletar\n{slots_lines}' if slots_lines else '')
+            + '\n\nQuando julgar que o objetivo foi cumprido, chame a ferramenta '
+              '`mark_goal_completed(reason, collected)` passando uma justificativa curta '
+              'e um dict com os dados coletados.'
+        )
+
+    system = agent_config.system_prompt + rag_context + goal_context
 
     from agents.tool_factory import get_tools_for_agent
-    tools = get_tools_for_agent(agent_config)
+    tools = get_tools_for_agent(agent_config, conversation=conversation, contact=contact)
 
     agent = Agent(
         model=model,
@@ -330,7 +345,7 @@ def send_follow_up(conversation_id: int):
     conv.agent.system_prompt = f'{original_prompt}\n\n[FOLLOW-UP {conv.follow_up_count + 1}/{conv.agent.max_follow_ups}]: {extra}'
 
     try:
-        response_text = _call_agno(conv.agent, history)
+        response_text = _call_agno(conv.agent, history, conversation=conv, contact=conv.contact)
     except Exception as e:
         logger.error(f'[send_follow_up] Erro no agno {e}')
         return

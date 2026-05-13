@@ -26,6 +26,12 @@ class AIAgentIn(Schema):
     max_follow_ups: int = 3
     follow_up_prompt: str = ''
     follow_up_respect_hours: bool = False
+    goal_enabled: bool = False
+    goal_description: str = ''
+    goal_slots: list[dict] = []
+    goal_action: str = ''
+    goal_assign_to_id: Optional[int] = None
+    goal_final_message: str = ''
 
 class AIAgentOut(Schema):
     id: int
@@ -43,6 +49,20 @@ class AIAgentOut(Schema):
     max_follow_ups: int
     follow_up_prompt: str
     follow_up_respect_hours: bool
+    goal_enabled: bool = False
+    goal_description: str = ''
+    goal_slots: list[dict] = []
+    goal_action: str = ''
+    goal_assign_to_id: Optional[int] = None
+    goal_final_message: str = ''
+
+class GoalCompletionOut(Schema):
+    id: int
+    conversation_id: int
+    contact_id: int
+    collected_data: dict
+    reason: str
+    created_at: datetime
 
 class AgentDocumentOut(Schema):
     id: int

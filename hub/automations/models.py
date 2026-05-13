@@ -7,6 +7,7 @@ TRIGGER_CHOICES = [
     ('conversation.created', 'Conversa criada'),
     ('conversation.closed', 'Conversa fechada'),
     ('message.received', 'Mensagem recebida'),
+    ('agent.goal_completed', 'Objetivo do agente cumprido'),
 ]
 
 ACTION_CHOICES = [

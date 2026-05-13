@@ -61,7 +61,7 @@ const AVAILABLE_TOOLS = [
 // ---------------------------------------------------------------------------
 // Estado
 // ---------------------------------------------------------------------------
-type Tab = 'geral' | 'conhecimento' | 'ferramentas' | 'memoria' | 'followup'
+type Tab = 'geral' | 'conhecimento' | 'ferramentas' | 'memoria' | 'followup' | 'objetivo'
 
 const tab = ref<Tab>('geral')
 
@@ -80,7 +80,24 @@ const form = reactive({
   max_follow_ups: 3,
   follow_up_prompt: '',
   follow_up_respect_hours: false,
+  goal_enabled: false,
+  goal_description: '',
+  goal_slots: [] as { key: string; label: string; required: boolean }[],
+  goal_action: '' as '' | 'deactivate_ai' | 'close_conversation' | 'assign_to_user' | 'trigger_automation',
+  goal_assign_to_id: null as number | null,
+  goal_final_message: '',
 })
+
+const members = ref<any[]>([])
+const membersLoading = ref(false)
+const fetchMembers = async () => {
+  if (members.value.length || membersLoading.value) return
+  membersLoading.value = true
+  try {
+    members.value = await api<any[]>('/api/org/members')
+  } catch {}
+  finally { membersLoading.value = false }
+}
 
 const loading = ref(false)
 const error = ref('')
@@ -151,6 +168,12 @@ watch(() => props.open, (val) => {
     form.max_follow_ups          = props.agent.max_follow_ups          ?? 3
     form.follow_up_prompt        = props.agent.follow_up_prompt        ?? ''
     form.follow_up_respect_hours = props.agent.follow_up_respect_hours ?? false
+    form.goal_enabled         = props.agent.goal_enabled         ?? false
+    form.goal_description     = props.agent.goal_description     ?? ''
+    form.goal_slots           = props.agent.goal_slots           ?? []
+    form.goal_action          = props.agent.goal_action          ?? ''
+    form.goal_assign_to_id    = props.agent.goal_assign_to_id    ?? null
+    form.goal_final_message   = props.agent.goal_final_message   ?? ''
   } else {
     form.name         = ''
     form.description  = ''
@@ -166,6 +189,12 @@ watch(() => props.open, (val) => {
     form.max_follow_ups          = 3
     form.follow_up_prompt        = ''
     form.follow_up_respect_hours = false
+    form.goal_enabled         = false
+    form.goal_description     = ''
+    form.goal_slots           = []
+    form.goal_action          = ''
+    form.goal_assign_to_id    = null
+    form.goal_final_message   = ''
   }
 })
 
@@ -182,7 +211,13 @@ watch(tab, async (val) => {
   if (val === 'ferramentas' && isEdit.value) {
     await fetchCustomTools()
   }
+  if (val === 'objetivo') {
+    await fetchMembers()
+  }
 })
+
+const addSlot = () => form.goal_slots.push({ key: '', label: '', required: false })
+const removeSlot = (idx: number) => form.goal_slots.splice(idx, 1)
 
 // ---------------------------------------------------------------------------
 // Submit principal
@@ -192,6 +227,20 @@ const submit = async () => {
   if (form.follow_up_enabled && form.follow_up_delay < 30) {
     error.value = 'O intervalo de follow-up não pode ser menor que 30 minutos.'
     return
+  }
+  if (form.goal_enabled) {
+    if (!form.goal_description.trim()) {
+      error.value = 'Descreva o objetivo ou desabilite a aba Objetivo.'
+      return
+    }
+    if (!form.goal_action) {
+      error.value = 'Selecione uma ação ao concluir o objetivo.'
+      return
+    }
+    if (form.goal_action === 'assign_to_user' && !form.goal_assign_to_id) {
+      error.value = 'Selecione o operador para atribuição.'
+      return
+    }
   }
   loading.value = true
   error.value = ''
@@ -423,7 +472,7 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
           <!-- Tabs -->
           <div class="flex border-b border-white/5 px-6 shrink-0">
             <button
-              v-for="[key, label] in [['geral','Geral'],['conhecimento','Conhecimento'],['ferramentas','Ferramentas'],['memoria','Memória'],['followup','Follow-up']]"
+              v-for="[key, label] in [['geral','Geral'],['conhecimento','Conhecimento'],['ferramentas','Ferramentas'],['memoria','Memória'],['followup','Follow-up'],['objetivo','Objetivo']]"
               :key="key"
               @click="key === 'geral' || !tabsDisabled ? tab = key as Tab : null"
               class="pb-2.5 mr-5 text-[10px] font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px"
@@ -924,6 +973,209 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
               <div v-if="!form.follow_up_enabled" class="flex flex-col items-center justify-center py-8 text-center">
                 <Icon icon="solar:bell-off-bold-duotone" class="text-3xl text-white/10 mb-2" />
                 <p class="text-xs font-mono text-neutral-700">Follow-up desabilitado</p>
+              </div>
+            </div>
+
+            <!-- ===================== ABA OBJETIVO ===================== -->
+            <div v-else-if="tab === 'objetivo'" class="space-y-4">
+
+              <!-- Explicação inicial -->
+              <div class="bg-blue-500/5 border border-blue-500/20 px-4 py-3">
+                <div class="flex items-start gap-2">
+                  <Icon icon="solar:info-circle-bold-duotone" class="text-base text-blue-400 shrink-0 mt-0.5" />
+                  <div class="space-y-1.5">
+                    <p class="text-[11px] font-mono text-blue-200/80 leading-relaxed">
+                      <strong class="text-blue-300">O que é um objetivo?</strong>
+                      Uma "meta" que a IA precisa cumprir na conversa. Quando a IA julgar que cumpriu,
+                      ela encerra o atendimento automaticamente (segundo a ação escolhida).
+                    </p>
+                    <p class="text-[11px] font-mono text-blue-200/60 leading-relaxed">
+                      <strong class="text-blue-300">Exemplo:</strong>
+                      objetivo = "coletar nome + email + problema do cliente" → IA conversa naturalmente,
+                      coleta os dados → ao ter tudo, marca como concluído → transfere para humano.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between py-3 border-b border-white/5">
+                <div>
+                  <p class="text-sm text-white">Ativar objetivo para este agente</p>
+                  <p class="text-[10px] font-mono text-neutral-600 mt-0.5">
+                    Desligado = IA conversa indefinidamente até alguém intervir manualmente
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="form.goal_enabled = !form.goal_enabled"
+                  class="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+                  :class="form.goal_enabled ? 'bg-accent' : 'bg-neutral-800'"
+                >
+                  <span
+                    class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    :class="form.goal_enabled ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </button>
+              </div>
+
+              <Transition name="fade">
+                <div v-if="form.goal_enabled" class="space-y-5">
+
+                  <!-- PASSO 1: Descrição -->
+                  <div>
+                    <div class="flex items-center gap-2 mb-1.5">
+                      <span class="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5">PASSO 1</span>
+                      <label class="field-label mb-0">O que a IA precisa fazer?</label>
+                    </div>
+                    <div class="input-wrapper !py-0 !px-0">
+                      <textarea
+                        v-model="form.goal_description"
+                        rows="4"
+                        placeholder="Descreva em linguagem natural, como se fosse para um funcionário. Ex: Qualificar o lead perguntando o nome da empresa, o tamanho do time e o orçamento mensal. Quando tiver as três informações, considere o objetivo cumprido."
+                        class="input-field resize-none !py-2.5 !px-3"
+                      />
+                    </div>
+                    <p class="text-[10px] font-mono text-neutral-700 mt-1">
+                      Seja específico: a IA usa esse texto como instrução. Quanto mais claro, melhor ela acerta.
+                    </p>
+                  </div>
+
+                  <!-- PASSO 2: Slots -->
+                  <div class="space-y-2 border-t border-white/5 pt-4">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5">PASSO 2</span>
+                      <label class="field-label mb-0">Quais dados a IA deve coletar? <span class="text-neutral-700 normal-case">(opcional, mas recomendado)</span></label>
+                    </div>
+                    <p class="text-[10px] font-mono text-neutral-600">
+                      Cada linha é um campo a coletar. Dica: <strong class="text-neutral-400">chave técnica</strong> vira nome no CRM (sem espaços/acentos),
+                      <strong class="text-neutral-400">rótulo</strong> é o nome humano. Ex: <code class="text-neutral-400">email</code> + "E-mail do cliente".
+                    </p>
+                    <div class="flex justify-end">
+                      <button type="button" @click="addSlot" class="text-[10px] font-mono text-neutral-600 hover:text-accent transition-colors flex items-center gap-1">
+                        <Icon icon="solar:add-circle-bold-duotone" class="text-xs" /> Adicionar campo
+                      </button>
+                    </div>
+                    <div v-if="form.goal_slots.length === 0" class="text-[10px] font-mono text-neutral-700 px-3 py-3 border border-dashed border-white/10 text-center">
+                      Nenhum campo definido — IA decide sozinha quando cumpriu o objetivo
+                    </div>
+                    <div v-else class="space-y-1.5">
+                      <div class="grid grid-cols-[1fr_1fr_auto_auto] gap-2 text-[9px] font-mono text-neutral-600 uppercase tracking-widest px-1">
+                        <span>Chave técnica</span>
+                        <span>Rótulo (humano)</span>
+                        <span>Obrig.</span>
+                        <span></span>
+                      </div>
+                      <div v-for="(s, idx) in form.goal_slots" :key="idx" class="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                        <div class="input-wrapper !rounded-none !py-2 !px-3">
+                          <input v-model="s.key" type="text" placeholder="ex: email" class="input-field font-mono text-xs" />
+                        </div>
+                        <div class="input-wrapper !rounded-none !py-2 !px-3">
+                          <input v-model="s.label" type="text" placeholder="E-mail do cliente" class="input-field text-xs" />
+                        </div>
+                        <input type="checkbox" v-model="s.required" class="accent-[rgb(var(--accent-rgb))] w-4 h-4 justify-self-center" :title="s.required ? 'Obrigatório' : 'Opcional'" />
+                        <button type="button" @click="removeSlot(idx)" class="text-neutral-600 hover:text-red-400 transition-colors px-1" title="Remover campo">
+                          <Icon icon="solar:close-circle-bold-duotone" class="text-base" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- PASSO 3: Ação -->
+                  <div class="space-y-2 border-t border-white/5 pt-4">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5">PASSO 3</span>
+                      <label class="field-label mb-0">O que fazer quando a IA cumprir o objetivo?</label>
+                    </div>
+                    <p class="text-[10px] font-mono text-neutral-600 mb-1">
+                      Escolha apenas uma ação. O trigger <code class="text-neutral-400">agent.goal_completed</code> dispara em qualquer caso.
+                    </p>
+                    <div class="space-y-2">
+                      <label
+                        v-for="opt in [
+                          { value: 'deactivate_ai',      title: 'Pausar a IA (recomendado)', icon: 'solar:pause-circle-bold-duotone', desc: 'A IA para de responder, conversa fica aberta esperando alguém da equipe assumir manualmente.' },
+                          { value: 'assign_to_user',     title: 'Encaminhar para um atendente', icon: 'solar:user-rounded-bold-duotone', desc: 'A IA para e a conversa é atribuída automaticamente a um atendente específico (você escolhe quem abaixo).' },
+                          { value: 'close_conversation', title: 'Encerrar a conversa', icon: 'solar:close-circle-bold-duotone', desc: 'Marca a conversa como concluída/fechada. Use quando o objetivo for o atendimento completo sem precisar de humano.' },
+                          { value: 'trigger_automation', title: 'Só disparar automação', icon: 'solar:settings-bold-duotone', desc: 'Não muda nada na conversa — só emite o evento para você montar um fluxo customizado na aba Automações (ex: enviar para webhook externo).' },
+                        ]"
+                        :key="opt.value"
+                        class="flex items-start gap-3 px-4 py-3 bg-canvas border cursor-pointer transition-colors"
+                        :class="form.goal_action === opt.value ? 'border-accent/40 bg-accent/5' : 'border-white/5 hover:border-white/10'"
+                      >
+                        <input
+                          type="radio"
+                          v-model="form.goal_action"
+                          :value="opt.value"
+                          class="mt-1 accent-[rgb(var(--accent-rgb))] shrink-0"
+                        />
+                        <Icon :icon="opt.icon" class="text-lg text-neutral-400 shrink-0 mt-0.5" />
+                        <div class="flex-1">
+                          <p class="text-sm text-white font-medium">{{ opt.title }}</p>
+                          <p class="text-[11px] font-mono text-neutral-600 mt-0.5 leading-relaxed">{{ opt.desc }}</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Select de operador (condicional) -->
+                  <Transition name="fade">
+                    <div v-if="form.goal_action === 'assign_to_user'" class="ml-2 pl-3 border-l-2 border-accent/30">
+                      <label class="field-label">Para qual atendente encaminhar?</label>
+                      <div class="bg-surface border border-white/10 rounded-full py-2.5 pl-5 pr-3 hover:border-accent/50 transition-colors">
+                        <select v-model="form.goal_assign_to_id" class="bg-transparent border-none outline-none text-white text-sm w-full font-mono appearance-none cursor-pointer">
+                          <option :value="null" class="bg-surface">— escolha um membro da organização —</option>
+                          <option v-for="m in members" :key="m.id" :value="m.id" class="bg-surface">
+                            {{ m.name || m.email }}
+                          </option>
+                        </select>
+                      </div>
+                      <p v-if="!members.length && !membersLoading" class="text-[10px] font-mono text-yellow-400/80 mt-1">
+                        Nenhum membro encontrado — convide alguém para a organização primeiro.
+                      </p>
+                    </div>
+                  </Transition>
+
+                  <!-- PASSO 4: Mensagem final -->
+                  <div class="border-t border-white/5 pt-4">
+                    <div class="flex items-center gap-2 mb-1.5">
+                      <span class="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5">PASSO 4</span>
+                      <label class="field-label mb-0">Mensagem de despedida da IA <span class="text-neutral-700 normal-case">(opcional)</span></label>
+                    </div>
+                    <div class="input-wrapper !py-0 !px-0">
+                      <textarea
+                        v-model="form.goal_final_message"
+                        rows="2"
+                        placeholder="Ex: Anotei tudo aqui! Vou te transferir para um atendente humano em instantes, ok?"
+                        class="input-field resize-none !py-2.5 !px-3"
+                      />
+                    </div>
+                    <p class="text-[10px] font-mono text-neutral-700 mt-1">
+                      Enviada ao cliente via WhatsApp imediatamente antes da ação acima. Deixe em branco se não quiser nenhuma despedida.
+                    </p>
+                  </div>
+
+                  <!-- Resumo final -->
+                  <div class="bg-accent/5 border border-accent/20 px-4 py-3">
+                    <p class="text-[10px] font-mono text-accent uppercase tracking-widest mb-1.5">Resumo do que vai acontecer</p>
+                    <p class="text-[11px] font-mono text-accent/80 leading-relaxed">
+                      A IA conversa normalmente até cumprir o objetivo descrito acima.
+                      <template v-if="form.goal_slots.length"> Os dados coletados ({{ form.goal_slots.map(s => s.key).filter(Boolean).join(', ') || '—' }}) são salvos no contato.</template>
+                      <template v-if="form.goal_final_message"> A IA envia a mensagem de despedida.</template>
+                      <template v-if="form.goal_action === 'deactivate_ai'"> Depois a IA pausa.</template>
+                      <template v-else-if="form.goal_action === 'assign_to_user'"> Depois a conversa é encaminhada ao atendente escolhido.</template>
+                      <template v-else-if="form.goal_action === 'close_conversation'"> Depois a conversa é encerrada.</template>
+                      <template v-else-if="form.goal_action === 'trigger_automation'"> Só dispara a automação configurada em Automações.</template>
+                      <template v-else><span class="text-red-300"> Escolha uma ação no PASSO 3.</span></template>
+                    </p>
+                  </div>
+                </div>
+              </Transition>
+
+              <div v-if="!form.goal_enabled" class="flex flex-col items-center justify-center py-8 text-center">
+                <Icon icon="solar:target-bold-duotone" class="text-3xl text-white/10 mb-2" />
+                <p class="text-xs font-mono text-neutral-700">Objetivo desativado</p>
+                <p class="text-[10px] font-mono text-neutral-700 mt-1 max-w-xs">
+                  Ligue o toggle acima para configurar quando a IA deve parar e o que fazer ao concluir
+                </p>
               </div>
             </div>
 

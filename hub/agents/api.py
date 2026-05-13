@@ -1,8 +1,8 @@
 from django.core.files.storage import default_storage
 from ninja import UploadedFile
 from ninja import Router, File
-from .models import AIProvider, AIAgent, AgentMembership, AgentDocument, AgentCustomTool
-from .schemas import AIProviderIn, AIProviderOut, AIAgentIn, AIAgentOut, AgentMembershipIn, AgentMembershipOut, AgentDocumentOut, AgentCustomToolIn, AgentCustomToolOut
+from .models import AIProvider, AIAgent, AgentMembership, AgentDocument, AgentCustomTool, GoalCompletion
+from .schemas import AIProviderIn, AIProviderOut, AIAgentIn, AIAgentOut, AgentMembershipIn, AgentMembershipOut, AgentDocumentOut, AgentCustomToolIn, AgentCustomToolOut, GoalCompletionOut
 from core.utils.errors import ErrorWithCodeSchema
 from accounts.models import User
 from django.shortcuts import get_object_or_404
@@ -66,6 +66,11 @@ def create_agent(request, data: AIAgentIn):
         **{k: v for k, v in data.dict().items() if k != 'provider_id'}
     )
     return 201, agent
+
+@router.get('/{agent_id}/completions', response=list[GoalCompletionOut])
+def list_agent_completions(request, agent_id: int):
+    agent = get_object_or_404(AIAgent, id=agent_id, organization=request.auth.organization)
+    return GoalCompletion.objects.filter(agent=agent).order_by('-created_at')[:200]
 
 @router.get('/{agent_id}', response={200: AIAgentOut, 404: ErrorWithCodeSchema})
 def get_agent(request, agent_id: int):
