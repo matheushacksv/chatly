@@ -75,11 +75,17 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
     sender_raw = info.get('Sender', '').split('@')[0]
     sender = normalize_phone(sender_raw)
     push_name = info.get('PushName', '')
-    text = data.get('Message', {}).get('conversation', '')
-
+    msg_obj = data.get('Message', {}) or {}
+    text = (
+        msg_obj.get('conversation')
+        or (msg_obj.get('extendedTextMessage') or {}).get('text')
+        or (msg_obj.get('imageMessage') or {}).get('caption')
+        or (msg_obj.get('videoMessage') or {}).get('caption')
+        or ''
+    )
 
     if not text and info.get('Type') != 'media':
-        return {'status': 'ignored'} 
+        return {'status': 'ignored'}
 
     try:
         instance = WhatsAppInstance.objects.select_related('agent__organization').get(instance_name=instance_name)
@@ -146,6 +152,9 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
         if not conversation.agent and instance.agent:
             conversation.agent = instance.agent
             update_fields.append('agent')
+            if not conversation.ai_active:
+                conversation.ai_active = True
+                update_fields.append('ai_active')
         if not conversation.instance_id:
             conversation.instance = instance
             update_fields.append('instance')
