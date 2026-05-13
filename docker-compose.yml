@@ -1,37 +1,47 @@
 services:
   web:
-    build: .
-    env_file: .env
+    build: ./hub
+    env_file: ./hub/.env
     depends_on: [redis, db]
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
+
   worker:
-    build: .
+    build: ./hub
     command: celery -A core worker -l info --concurrency=4 -Q celery,default,ai
-    env_file: .env
+    env_file: ./hub/.env
     depends_on: [redis, db]
     restart: unless-stopped
+
   beat:
-    build: .
+    build: ./hub
     command: celery -A core beat -l info
-    env_file: .env
+    env_file: ./hub/.env
     depends_on: [redis, db]
     restart: unless-stopped
+
+  frontend:
+    build: ./hub-frontend
+    env_file: ./hub-frontend/.env
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-    env_file: .env
+    env_file: ./hub/.env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
 
 volumes:
   postgres_data:
-
