@@ -17,7 +17,7 @@ def extract_template_params(url: str, body: str) -> list[str]:
     params.update(re.findall(pattern, body or ''))
     return sorted(params)
 
-def _build_goal_tool(agent, conversation, contact):
+def _build_goal_tool(agent, conversation, contact, state):
     slots = agent.goal_slots or []
     slots_keys = [s['key'] for s in slots]
 
@@ -29,6 +29,9 @@ def _build_goal_tool(agent, conversation, contact):
         '''
         from agents.services import handle_goal_completion
         handle_goal_completion(agent, conversation, contact, reason=reason, collected=collected or {})
+        state['fired'] = True
+        state['reason'] = reason
+        state['collected'] = collected or {}
         return 'goal_marked_completed'
     
     mark_goal_completed.__doc__ = (
@@ -87,7 +90,7 @@ def {tool.name}({param_str}):
     return fn
 
 
-def get_tools_for_agent(agent, conversation=None, contact=None) -> list:
+def get_tools_for_agent(agent, conversation=None, contact=None, goal_state=None) -> list:
     tools = []
 
     for name in agent.enabled_tools:
@@ -99,7 +102,6 @@ def get_tools_for_agent(agent, conversation=None, contact=None) -> list:
         tools.append(build_http_function(custom_tool))
 
     if agent.goal_enabled and conversation is not None and contact is not None:
-        tools.append(_build_goal_tool(agent, conversation, contact))
-
+        tools.append(_build_goal_tool(agent, conversation, contact, goal_state if goal_state is not None else {}))
     return tools
 

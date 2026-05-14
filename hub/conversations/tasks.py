@@ -218,10 +218,16 @@ def process_message(message_id: int):
     conversation.refresh_from_db(fields=['follow_up_count', 'next_follow_up_at'])
 
     try:
-        response_text = _call_agno(conversation.agent, history, attachments=attachments, conversation=conversation, contact=conversation.contact)
+        response_text, goal_completed = _call_agno(conversation.agent, history, attachments=attachments, conversation=conversation, contact=conversation.contact)
     except Exception as e:
         logger.error(f'[process_message] Erro no agno: {e}')
         return
+    
+    if goal_completed:
+        from conversations.consumers import notify_conversation_updated
+        conversation.refresh_from_db()
+        notify_conversation_updated(conversation)
+        return 200
 
     if not response_text:
         logger.warning('[process_message] Agno retornou response text vazio')
@@ -298,8 +304,10 @@ def _call_agno(agent_config, history, attachments=None, conversation=None, conta
         rag_context = f'\n\n## Base de conhecimento\n{chunks}'
 
     goal_context = ''
+    goal_state = {'fired': False}
     if agent_config.goal_enabled and agent_config.goal_description:
         slots = agent_config.goal_slots or []
+        required_keys = [s['key'] for s in slots if s.get('required')]
         slots_lines = '\n'.join(
             f'- {s.get("key")}: {s.get("label", "")}' + (' (obrigatório)' if s.get('required') else '')
             for s in slots
@@ -307,15 +315,17 @@ def _call_agno(agent_config, history, attachments=None, conversation=None, conta
         goal_context = (
             f'\n\n## OBJETIVO DESTA CONVERSA\n{agent_config.goal_description}'
             + (f'\n\n### Dados a coletar\n{slots_lines}' if slots_lines else '')
-            + '\n\nQuando julgar que o objetivo foi cumprido, chame a ferramenta '
-              '`mark_goal_completed(reason, collected)` passando uma justificativa curta '
-              'e um dict com os dados coletados.'
+            + (f'\n\n### Critério\nObjetivo cumprido quando os slots obrigatórios estiverem preenchidos: {required_keys} ' if required_keys else '')
+            + '\n\nQuando o objetivo estiver cumprido, chame OBRIGATORIAMENTE a ferramenta '
+              '`mark_goal_completed(reason, collected)` com justificativa curta e dict dos dados coletados. '
+              'IMPORTANTE: ao chamar essa ferramenta, NÃO produza texto de resposta - apenas a chamada. '
+              'A mensagem final ao usuário (se configurada) é enviada automaticamente pelo sistema.'
         )
 
     system = agent_config.system_prompt + rag_context + goal_context
 
     from agents.tool_factory import get_tools_for_agent
-    tools = get_tools_for_agent(agent_config, conversation=conversation, contact=contact)
+    tools = get_tools_for_agent(agent_config, conversation=conversation, contact=contact, goal_state=goal_state)
 
     agent = Agent(
         model=model,
@@ -340,7 +350,9 @@ def _call_agno(agent_config, history, attachments=None, conversation=None, conta
         kwargs['images'] = images
 
     response = agent.run(all_messages, **kwargs)
-    return response.content
+    if goal_state.get('fired'):
+        logger.info(f'[_call_agno] goal completed conv={conversation.id} reason={goal_state.get("reason")!r}')
+    return response.content, goal_state.get('fired', False)
 
 def _get_agno_model(agent_config):
     from agno.models.openai import OpenAIChat
