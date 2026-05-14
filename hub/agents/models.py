@@ -56,6 +56,9 @@ class AIAgent(models.Model):
     split_min_delay_ms = models.PositiveIntegerField(default=600)
     split_max_delay_ms = models.PositiveIntegerField(default=3500)
 
+    accumulate_messages_enabled = models.BooleanField(default=False)
+    accumulate_window_seconds = models.PositiveIntegerField(default=10)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

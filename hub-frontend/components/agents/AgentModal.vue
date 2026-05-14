@@ -90,6 +90,8 @@ const form = reactive({
   split_typing_speed_ms_per_char: 35,
   split_min_delay_ms: 600,
   split_max_delay_ms: 3500,
+  accumulate_messages_enabled: false,
+  accumulate_window_seconds: 10,
 })
 
 const members = ref<any[]>([])
@@ -182,6 +184,8 @@ watch(() => props.open, (val) => {
     form.split_typing_speed_ms_per_char = props.agent.split_typing_speed_ms_per_char ?? 35
     form.split_min_delay_ms             = props.agent.split_min_delay_ms             ?? 600
     form.split_max_delay_ms             = props.agent.split_max_delay_ms             ?? 3500
+    form.accumulate_messages_enabled    = props.agent.accumulate_messages_enabled    ?? false
+    form.accumulate_window_seconds      = props.agent.accumulate_window_seconds      ?? 10
   } else {
     form.name         = ''
     form.description  = ''
@@ -207,6 +211,8 @@ watch(() => props.open, (val) => {
     form.split_typing_speed_ms_per_char = 35
     form.split_min_delay_ms             = 600
     form.split_max_delay_ms             = 3500
+    form.accumulate_messages_enabled    = false
+    form.accumulate_window_seconds      = 10
   }
 })
 
@@ -1202,13 +1208,60 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                 <div class="flex items-start gap-2">
                   <Icon icon="solar:info-circle-bold-duotone" class="text-base text-blue-400 shrink-0 mt-0.5" />
                   <p class="text-[11px] font-mono text-blue-200/80 leading-relaxed">
-                    Divide respostas longas da IA em várias mensagens menores, simulando digitação humana.
-                    Cada frase chega como uma bolha separada no WhatsApp, com pausa entre elas proporcional ao tamanho.
+                    Controle como a IA recebe e responde mensagens: agrupe mensagens picadas do usuário em uma única chamada,
+                    e divida respostas longas em várias bolhas no WhatsApp.
                   </p>
                 </div>
               </div>
 
-              <!-- Toggle habilitar -->
+              <!-- ===== Acumular mensagens do usuário ===== -->
+              <div class="flex items-center justify-between py-3 border-b border-white/5">
+                <div>
+                  <p class="text-sm text-white">Acumular mensagens do usuário</p>
+                  <p class="text-[10px] font-mono text-neutral-600 mt-0.5">
+                    Aguarda alguns segundos antes de processar, agrupando mensagens picadas em uma única resposta
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="form.accumulate_messages_enabled = !form.accumulate_messages_enabled"
+                  class="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+                  :class="form.accumulate_messages_enabled ? 'bg-accent' : 'bg-neutral-800'"
+                >
+                  <span
+                    class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    :class="form.accumulate_messages_enabled ? 'translate-x-5' : 'translate-x-0'"
+                  ></span>
+                </button>
+              </div>
+
+              <Transition name="fade">
+                <div v-if="form.accumulate_messages_enabled" class="space-y-3">
+                  <div>
+                    <label class="field-label">Janela de espera <span class="text-neutral-700 normal-case">(segundos)</span></label>
+                    <div class="input-wrapper">
+                      <input
+                        v-model.number="form.accumulate_window_seconds"
+                        type="number" min="2" max="60" step="1"
+                        class="input-field"
+                      />
+                    </div>
+                    <p class="text-[10px] font-mono text-neutral-700 mt-1">
+                      Recomendado 5–15s. Cada nova mensagem dentro da janela reinicia o contador.
+                    </p>
+                  </div>
+
+                  <div class="bg-accent/5 border border-accent/20 px-4 py-3">
+                    <p class="text-[11px] font-mono text-accent/80 leading-relaxed">
+                      Exemplo: usuário envia "Oi", "tudo bem?", "como vc tá?" em 3 segundos.
+                      A IA aguarda <strong class="text-accent">{{ form.accumulate_window_seconds }}s</strong> de silêncio
+                      e processa as 3 mensagens juntas, gerando <strong class="text-accent">1 resposta</strong> em vez de 3.
+                    </p>
+                  </div>
+                </div>
+              </Transition>
+
+              <!-- Toggle habilitar split -->
               <div class="flex items-center justify-between py-3 border-b border-white/5">
                 <div>
                   <p class="text-sm text-white">Dividir resposta em mensagens</p>
