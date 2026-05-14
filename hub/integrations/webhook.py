@@ -11,6 +11,7 @@ from conversations.utils.utils import upload_attachment
 from conversations.models import MessageAttachment
 from integrations.pipedrive_tasks import create_deal_from_conversation, sync_contact_to_pipedrive
 from . import services
+from conversations.tasks import schedule_ai_processing
 
 router = Router(tags=['Webhooks'])
 
@@ -209,14 +210,14 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
                 if media_subtype in ('audio', 'ptt'):
                     transcribe_and_process_message.delay(attachment.id)
                 elif instance.agent and conversation.ai_active:
-                    process_message.delay(message.id)
+                    schedule_ai_processing(message)
 
             except Exception as e:
                 print(f'Erro ao salvar a midia: {e}')
 
     else:
         if instance.agent and conversation.ai_active:
-            process_message.delay(message.id)
+            schedule_ai_processing(message)
 
     # Notifica após o attachment estar criado, para que a serialização inclua os anexos
     notify_new_message(conversation.id, message)

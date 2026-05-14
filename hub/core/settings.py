@@ -181,6 +181,13 @@ NINJA_JWT = {
 
 REDIS_URL = config('REDIS_URL')
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': REDIS_URL,
+    }
+}
+
 # Channels
 CHANNEL_LAYERS = {
     'default': {

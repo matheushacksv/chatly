@@ -4,8 +4,11 @@ from celery import shared_task
 from integrations.services import send_message
 import logging
 from datetime import timedelta
+import uuid
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+ACCUMULATE_MARKER_KEY = 'accumulate:marker:{conv_id}'
 
 @shared_task(soft_time_limit=90, time_limit=120)
 def transcribe_and_process_message(attachment_id: int):
@@ -115,6 +118,40 @@ def send_whatsapp_message(self, message_id: int, instance_id: int = None):
         logger.error('[send_whatsapp_message] failed for message %s: %s', message_id, exc)
         raise self.retry(exc=exc, countdown=10)
 
+@shared_task
+def process_accumulated_messages(conversation_id: int, token: str):
+    from conversations.models import Message
+    
+    key = ACCUMULATE_MARKER_KEY.format(conv_id=conversation_id)
+    current = cache.get(key)
+    if current != token:
+        return
+    cache.delete(key)
+
+    last_user_msg = (
+        Message.objects.filter(conversation_id=conversation_id, role=Message.Role.USER).order_by('-created_at').first()
+    )
+    if not last_user_msg:
+        return
+    process_message(last_user_msg.id)
+
+
+def schedule_ai_processing(message):
+    """Decide entre fire imediato ou debounce baseado no agente."""
+
+    conversation = message.conversation
+    agent = conversation.agent
+    if not agent or not agent.accumulate_messages_enabled:
+        process_message.delay(message.id)
+        return
+    
+    window = max(2, min(60, agent.accumulate_window_seconds))
+    token = uuid.uuid4().hex
+    cache.set(ACCUMULATE_MARKER_KEY.format(conv_id=conversation.id), token, timeout=window + 30)
+    process_accumulated_messages.apply_async(
+        args=[conversation.id, token],
+        countdown=window
+    )
 
 @shared_task(soft_time_limit=30, time_limit=60)
 def send_scheduled_message(message_id: int):

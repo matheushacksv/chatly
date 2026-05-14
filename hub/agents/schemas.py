@@ -36,6 +36,8 @@ class AIAgentIn(Schema):
     split_typing_speed_ms_per_char: int = 35
     split_min_delay_ms: int = 600
     split_max_delay_ms: int = 3500
+    accumulate_messages_enabled: bool = False
+    accumulate_window_seconds: int = 10
 
 class AIAgentOut(Schema):
     id: int
@@ -63,6 +65,8 @@ class AIAgentOut(Schema):
     split_typing_speed_ms_per_char: int = 35
     split_min_delay_ms: int = 600
     split_max_delay_ms: int = 3500
+    accumulate_messages_enabled: bool = False
+    accumulate_window_seconds: int = 10
 
 class GoalCompletionOut(Schema):
     id: int
