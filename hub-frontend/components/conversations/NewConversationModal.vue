@@ -10,7 +10,10 @@ const emit = defineEmits<{ close: []; created: [conv: any] }>()
 const api = useApi()
 
 // ---- Modo ----
-const mode = ref<'existing' | 'new'>('existing')
+const mode = ref<'existing' | 'new' | 'pipedrive'>('existing')
+
+// ---- Pipedrive ----
+const selectedPipedrive = ref<any>(null)
 
 // ---- Contatos existentes ----
 const contacts = ref<any[]>([])
@@ -37,9 +40,11 @@ const filteredContacts = computed(() => {
 const form = reactive({
   phone: '',
   name: '',
+  email: '',
   instance_id: null as number | null,
   agent_id: null as number | null,
   message: '',
+  pipedrive_person_id: null as number | null,
 })
 
 const instances = ref<any[]>([])
@@ -54,11 +59,14 @@ watch(() => props.open, async (val) => {
   error.value = ''
   contactSearch.value = ''
   selectedContact.value = null
+  selectedPipedrive.value = null
   form.phone = ''
   form.name = ''
+  form.email = ''
   form.message = ''
   form.instance_id = null
   form.agent_id = null
+  form.pipedrive_person_id = null
 
   contactsLoading.value = true
   try {
@@ -79,6 +87,14 @@ const selectContact = (contact: any) => {
   form.name = contact.name || ''
 }
 
+const onPipedriveSelect = (person: any) => {
+  selectedPipedrive.value = person
+  form.phone = person.phone || ''
+  form.name = person.name || ''
+  form.email = person.email || ''
+  form.pipedrive_person_id = person.pipedrive_person_id ?? null
+}
+
 const submit = async () => {
   if (!form.phone.trim() || !form.instance_id) return
   loading.value = true
@@ -89,9 +105,11 @@ const submit = async () => {
       body: {
         phone: form.phone.trim(),
         name: form.name.trim(),
+        email: form.email.trim(),
         instance_id: form.instance_id,
         agent_id: form.agent_id,
         message: form.message.trim(),
+        pipedrive_person_id: form.pipedrive_person_id,
       },
     })
     emit('created', conv)
@@ -105,6 +123,7 @@ const submit = async () => {
 const canSubmit = computed(() => {
   if (!form.instance_id) return false
   if (mode.value === 'existing') return !!selectedContact.value
+  if (mode.value === 'pipedrive') return !!selectedPipedrive.value
   return !!form.phone.trim()
 })
 </script>
@@ -127,18 +146,25 @@ const canSubmit = computed(() => {
           <!-- Tabs modo -->
           <div class="flex border-b border-white/5 px-8 mt-5">
             <button
-              @click="mode = 'existing'; selectedContact = null"
+              @click="mode = 'existing'; selectedContact = null; selectedPipedrive = null"
               class="pb-2.5 mr-6 text-[10px] font-mono uppercase tracking-widest border-b-2 -mb-px transition-colors"
               :class="mode === 'existing' ? 'text-accent border-accent' : 'text-neutral-600 border-transparent hover:text-neutral-400'"
             >
               Contato existente
             </button>
             <button
-              @click="mode = 'new'; selectedContact = null; form.phone = ''; form.name = ''"
-              class="pb-2.5 text-[10px] font-mono uppercase tracking-widest border-b-2 -mb-px transition-colors"
+              @click="mode = 'new'; selectedContact = null; selectedPipedrive = null; form.phone = ''; form.name = ''"
+              class="pb-2.5 mr-6 text-[10px] font-mono uppercase tracking-widest border-b-2 -mb-px transition-colors"
               :class="mode === 'new' ? 'text-accent border-accent' : 'text-neutral-600 border-transparent hover:text-neutral-400'"
             >
               Novo contato
+            </button>
+            <button
+              @click="mode = 'pipedrive'; selectedContact = null; selectedPipedrive = null; form.phone = ''; form.name = ''"
+              class="pb-2.5 text-[10px] font-mono uppercase tracking-widest border-b-2 -mb-px transition-colors"
+              :class="mode === 'pipedrive' ? 'text-accent border-accent' : 'text-neutral-600 border-transparent hover:text-neutral-400'"
+            >
+              Pipedrive
             </button>
           </div>
 
@@ -202,7 +228,7 @@ const canSubmit = computed(() => {
             </template>
 
             <!-- ===== MODO: NOVO CONTATO ===== -->
-            <template v-else>
+            <template v-else-if="mode === 'new'">
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="field-label">Telefone <span class="text-red-500">*</span></label>
@@ -218,6 +244,23 @@ const canSubmit = computed(() => {
                   </div>
                 </div>
               </div>
+            </template>
+
+            <!-- ===== MODO: PIPEDRIVE ===== -->
+            <template v-else>
+              <div v-if="selectedPipedrive" class="flex items-center gap-3 px-4 py-3 bg-accent/5 border border-accent/30">
+                <div class="w-7 h-7 bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+                  <span class="text-[10px] font-mono text-accent uppercase">{{ selectedPipedrive.name?.[0] || '?' }}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-white font-medium truncate">{{ selectedPipedrive.name || 'Sem nome' }}</p>
+                  <p class="text-[11px] font-mono text-neutral-500">{{ selectedPipedrive.phone || selectedPipedrive.email || '—' }}</p>
+                </div>
+                <button type="button" @click="selectedPipedrive = null; form.phone = ''; form.name = ''; form.email = ''; form.pipedrive_person_id = null" class="text-neutral-400 hover:text-white transition-colors">
+                  <Icon icon="solar:close-circle-bold-duotone" class="text-base" />
+                </button>
+              </div>
+              <PipedrivePersonSearch v-else @select="onPipedriveSelect" />
             </template>
 
             <!-- ===== CAMPOS COMUNS ===== -->

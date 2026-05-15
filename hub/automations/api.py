@@ -89,6 +89,13 @@ ACTIONS_META = [
         'label': 'Fechar conversa',
         'fields': [],
     },
+    {
+        'type': 'update_deal_stage',
+        'label': 'Mudar etapa do deal (Pipedrive)',
+        'fields': [
+            {'key': 'stage_id', 'label': 'Etapa de destino', 'type': 'pipedrive_stage_select', 'required': True},
+        ],
+    },
 ]
 
 

@@ -20,6 +20,7 @@ ACTION_CHOICES = [
     ('wait_delay', 'Aguardar'),
     ('assign_to_user', 'Atribuir a usuário'),
     ('close_conversation', 'Fechar conversa'),
+    ('update_deal_stage', 'Mudar etapa do deal (Pipedrive)'),
 ]
 
 

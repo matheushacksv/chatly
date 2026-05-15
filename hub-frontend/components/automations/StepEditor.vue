@@ -33,6 +33,20 @@ const emit = defineEmits<{
 
 const currentAction = computed(() => props.actions.find(a => a.type === props.step.action_type))
 
+const api = useApi()
+const pipelines = useState<any[]>('pipedrive-pipelines', () => [])
+const pipelinesFetched = useState<boolean>('pipedrive-pipelines-fetched', () => false)
+
+onMounted(async () => {
+  if (pipelinesFetched.value) return
+  const needs = props.actions.some(a => a.fields.some(f => f.type === 'pipedrive_stage_select'))
+  if (!needs) return
+  pipelinesFetched.value = true
+  try {
+    pipelines.value = await api<any[]>('/api/org/integrations/pipedrive/pipelines')
+  } catch {}
+})
+
 const onActionChange = () => {
   // resetar config ao mudar tipo
   props.step.config = {}
@@ -179,6 +193,18 @@ const parseJson = (raw: string, key: string) => {
           <option v-for="m in members" :key="m.id || m.user_id" :value="m.id || m.user_id">
             {{ m.name || m.email || m.user_email }}
           </option>
+        </select>
+
+        <!-- pipedrive stage select -->
+        <select
+          v-else-if="field.type === 'pipedrive_stage_select'"
+          v-model.number="props.step.config[field.key]"
+          class="w-full bg-canvas border border-white/10 text-sm text-white font-mono px-3 py-2 outline-none focus:border-white/20"
+        >
+          <option :value="undefined">—</option>
+          <optgroup v-for="p in pipelines" :key="p.id" :label="p.name">
+            <option v-for="s in p.stages" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </optgroup>
         </select>
 
         <!-- json -->

@@ -249,3 +249,42 @@ def _close_conversation(config: dict, run_context: dict, organization_id: int):
         status=Conversation.Status.CLOSED,
         ended_at=timezone.now(),
     )
+
+
+@register('update_deal_stage')
+def _update_deal_stage(config: dict, run_context: dict, organization_id: int):
+    from conversations.models import Conversation
+    from integrations.models import PipedriveIntegration
+    from integrations.pipedrive_services import update_deal_stage
+
+    stage_id = config.get('stage_id')
+    if not stage_id:
+        raise ValueError('update_deal_stage: stage_id é obrigatório')
+
+    integration = PipedriveIntegration.objects.filter(
+        organization_id=organization_id, is_active=True,
+    ).first()
+    if integration is None:
+        logger.warning('update_deal_stage: integração Pipedrive inativa — pulando')
+        return
+
+    conv = _get_conversation(run_context, organization_id)
+    deal_id = conv.pipedrive_deal_id if conv else None
+
+    if not deal_id:
+        contact = _get_contact(run_context, organization_id)
+        if contact:
+            deal_id = (
+                Conversation.objects
+                .filter(contact=contact, organization_id=organization_id)
+                .exclude(pipedrive_deal_id__isnull=True)
+                .order_by('-started_at')
+                .values_list('pipedrive_deal_id', flat=True)
+                .first()
+            )
+
+    if not deal_id:
+        logger.info('update_deal_stage: nenhum deal para o contato — pulando')
+        return
+
+    update_deal_stage(integration.api_key, int(deal_id), int(stage_id))

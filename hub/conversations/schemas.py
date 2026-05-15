@@ -128,6 +128,8 @@ class SendStickerIn(Schema):
 class StartConversationIn(Schema):
     phone: str
     name: str = ''
+    email: str = ''
     instance_id: int
     agent_id: Optional[int] = None
     message: str = ''
+    pipedrive_person_id: Optional[int] = None
