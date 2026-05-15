@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'campaigns',
     'billing',
     'automations',
+    'django.contrib.postgres'
 ]
 
 MIDDLEWARE = [
@@ -258,6 +259,9 @@ FIELD_ENCRYPTION_KEY = config('FIELD_ENCRYPTION_KEY')
 # Stripe
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET')
+
+# OpenAI
+OPENAI_API_KEY = config('OPENAI_API_KEY')
 
 # Logging
 

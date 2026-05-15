@@ -336,15 +336,27 @@ def _call_agno(agent_config, history, attachments=None, conversation=None, conta
     from agno.agent import Agent
     from agno.models.message import Message as AgnoMessage
     from agno.media import Image
+    from agents.models import DocumentChunk
+    from agents.embeddings import embed_query
+    from pgvector.django import CosineDistance
 
     model = _get_agno_model(agent_config)
     provider_type = agent_config.provider.provider_type
 
     rag_context = ''
-    docs = AgentDocument.objects.filter(agent=agent_config, status='ready')
-    if docs.exists():
-        chunks = '\n\n---\n\n'.join(d.content[:5000] for d in docs)
-        rag_context = f'\n\n## Base de conhecimento\n{chunks}'
+    last_user = next((m['content'] for m in reversed(history) if m['role'] == 'user'), None)
+    if last_user:
+        try:
+            qvec = embed_query(last_user)
+            top = list(
+                DocumentChunk.objects.filter(agent=agent_config)
+                .order_by(CosineDistance('embedding', qvec))[:6]
+            )
+            if top:
+                joined = '\n\n---\n\n'.join(c.content for c in top)
+                rag_context = f'\n\n## Base de conhecimento\n{joined}'
+        except Exception as e:
+            logger.error(f'[_call_agno] retrieval falhou, seguindo sem RAG: {e}')
 
     goal_context = ''
     goal_state = {'fired': False}

@@ -1,6 +1,7 @@
 from django.db import models
 from accounts.models import Organization
 from encrypted_model_fields.fields import EncryptedTextField
+from pgvector.django import VectorField, HnswIndex
 
 class AIProvider(models.Model):
     class ProviderType(models.TextChoices):
@@ -82,6 +83,21 @@ class AgentDocument(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+
+class DocumentChunk(models.Model):
+    document = models.ForeignKey(AgentDocument, on_delete=models.CASCADE, related_name='chunks')
+    agent = models.ForeignKey(AIAgent, on_delete=models.CASCADE, related_name='document_chunks')
+    ordinal = models.PositiveIntegerField()
+    content = models.TextField()
+    embedding = VectorField(dimensions=1536)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            HnswIndex(name='chunk_embedding_hnsw', fields=['embedding'],
+                      m=16, ef_construction=64, opclasses=['vector_cosine_ops']),
+            models.Index(fields=['agent'])
+        ]
 
 class AgentCustomTool(models.Model):
     METHOD_CHOICES = [('GET', 'GET'),('POST', 'POST'),('PUT', 'PUT'),('PATCH', 'PATCH'),('DELETE', 'DELETE')]
