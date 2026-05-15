@@ -7,4 +7,5 @@ onMounted(() => initTheme())
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
+  <CookieBanner />
 </template>

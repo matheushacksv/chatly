@@ -24,7 +24,7 @@ const submit = async () => {
   loading.value = true
   try {
     await authStore.acceptInvite({ token, ...form })
-    await router.push('/')
+    await router.push('/dashboard')
   } catch (e: any) {
     error.value = e?.data?.detail || 'Convite inválido ou expirado'
   } finally {

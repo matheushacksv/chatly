@@ -9,6 +9,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   const isPublicRoute =
+    to.path === '/' ||
+    to.path === '/privacidade' ||
+    to.path === '/cookies' ||
     to.path === '/login' ||
     to.path === '/register' ||
     to.path === '/forgot-password' ||
@@ -20,7 +23,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/register')) {
-    return navigateTo('/')
+    return navigateTo('/dashboard')
   }
 
   // Mantém o user e suas permissões sempre atualizados

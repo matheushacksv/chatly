@@ -90,7 +90,7 @@ onUnmounted(() => {
   >
     <!-- Logo -->
     <div class="border-b border-white/5 flex items-center" :class="isCollapsed ? 'px-0 py-5 justify-center' : 'px-5 py-5'">
-      <NuxtLink to="/" class="flex items-center gap-2.5">
+      <NuxtLink to="/dashboard" class="flex items-center gap-2.5">
         <div class="w-3 h-3 bg-accent shrink-0"></div>
         <span v-if="!isCollapsed" class="text-white text-xs font-mono uppercase tracking-widest">ChatlyAi</span>
       </NuxtLink>
