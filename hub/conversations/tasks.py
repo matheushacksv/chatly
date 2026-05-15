@@ -54,10 +54,7 @@ def transcribe_and_process_message(self, attachment_id: int):
     if not conversation.agent or not conversation.ai_active:
         return
 
-    history = list(
-        conversation.messages.order_by('-created_at').values('role', 'content')[:50]
-    )
-    history.reverse()
+    history = conversation.ai_history()
 
     if history:
         history[-1]['content'] = f'[Audio]: {transcription}'
@@ -243,10 +240,7 @@ def process_message(self, message_id: int):
     if not conversation.ai_active:
         return
 
-    history = list(
-        conversation.messages.order_by('-created_at').values('role', 'content')[:50]
-    )
-    history.reverse()
+    history = conversation.ai_history()
 
     attachments = list(message.attachments.all())
 
@@ -475,8 +469,7 @@ def send_follow_up(self, conversation_id: int):
         Conversation.objects.filter(id=conversation_id).update(next_follow_up_at=None)
         return
     
-    history = list(conv.messages.order_by('-created_at').values('role', 'content')[:50])
-    history.reverse()
+    history = conv.ai_history()
 
     extra = conv.agent.follow_up_prompt or 'O usuário não respondeu. Envie uma mensagem de follow-up para retomar a conversa.'
     original_prompt = conv.agent.system_prompt

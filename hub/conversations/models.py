@@ -24,12 +24,21 @@ class Conversation(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     campaign = models.ForeignKey('campaigns.Campaign', on_delete=models.SET_NULL, null=True, blank=True)
+    memory_reset_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
             models.Index(fields=['organization', 'status']),
             models.Index(fields=['organization', '-started_at'])
         ]
+
+    def ai_history(self, limit=50):
+        qs = self.messages.all()
+        if self.memory_reset_at:
+            qs = qs.filter(created_at__gt=self.memory_reset_at)
+        history = list(qs.order_by('-created_at').values('role', 'content')[:limit])
+        history.reverse()
+        return history
 
     def __str__(self):
         return f'{self.contact}'
