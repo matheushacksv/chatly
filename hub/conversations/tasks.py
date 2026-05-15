@@ -6,12 +6,21 @@ import logging
 from datetime import timedelta
 import uuid
 from django.core.cache import cache
+import re
 
 logger = logging.getLogger(__name__)
 ACCUMULATE_MARKER_KEY = 'accumulate:marker:{conv_id}'
+_RETRY_RE = re.compile(r'try again in ([\d.]+)\s*s', re.IGNORECASE)
 
-@shared_task(soft_time_limit=90, time_limit=120)
-def transcribe_and_process_message(attachment_id: int):
+class AgnoInferenceError(Exception):
+    '''agent.run() retornou status de erro (Agno engole a excção)'''
+    def __init__(self, message, retry_after=None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+@shared_task(bind=True, soft_time_limit=90, time_limit=120, max_retries=3)
+def transcribe_and_process_message(self, attachment_id: int):
     from conversations.models import MessageAttachment, Message
     from conversations.transcription import transcribe_audio
 
@@ -55,6 +64,13 @@ def transcribe_and_process_message(attachment_id: int):
 
     try:
         response_text, goal_completed = _call_agno(conversation.agent, history, conversation=conversation, contact=conversation.contact)
+    except AgnoInferenceError as e:
+        delay = min(e.retry_after or 30 * (2 ** self.request.retries), 120)
+        try:
+            raise self.retry(exc=e, countdown=delay)
+        except self.MaxRetriesExceededError:
+            logger.error(f'[transcribe_and_process_message] rate limit persistente, desistindo: {e}')
+            return
     except Exception as e:
         logger.error(f'[transcribe_and_process_message] Erro no agno: {e}')
         return
@@ -159,7 +175,7 @@ def process_accumulated_messages(conversation_id: int, token: str):
     )
     if not last_user_msg:
         return
-    process_message(last_user_msg.id)
+    process_message.delay(last_user_msg.id)
 
 
 def schedule_ai_processing(message):
@@ -209,8 +225,8 @@ def send_scheduled_message(message_id: int):
         logger.error(f'[send_scheduled_message] Falha ao enviar mensagem {message_id}: {e}')
         Message.objects.filter(id=message_id).update(scheduled_status='failed')
 
-@shared_task(soft_time_limit=90, time_limit=120)
-def process_message(message_id: int):
+@shared_task(bind=True, soft_time_limit=90, time_limit=120, max_retries=3)
+def process_message(self, message_id: int):
     from conversations.models import Message, Conversation
     from agents.models import AIAgent
 
@@ -245,6 +261,13 @@ def process_message(message_id: int):
 
     try:
         response_text, goal_completed = _call_agno(conversation.agent, history, attachments=attachments, conversation=conversation, contact=conversation.contact)
+    except AgnoInferenceError as e:
+        delay = min(e.retry_after or 30 * (2 ** self.request.retries), 120)
+        try:
+            raise self.retry(exc=e, countdown=delay)
+        except self.MaxRetriesExceededError:
+            logger.error(f'[process_message] rate limit persistente, desistindo: {e}')
+            return
     except Exception as e:
         logger.error(f'[process_message] Erro no agno: {e}')
         return
@@ -376,6 +399,13 @@ def _call_agno(agent_config, history, attachments=None, conversation=None, conta
         kwargs['images'] = images
 
     response = agent.run(all_messages, **kwargs)
+    
+    from agno.run.base import RunStatus
+    if getattr(response, 'status', None) == RunStatus.error:
+        content = response.content or 'erro de inferência desconhecido'
+        m = _RETRY_RE.search(str(content))
+        raise AgnoInferenceError(content, retry_after=float(m.group(1)) if m else None)
+    
     if goal_state.get('fired'):
         logger.info(f'[_call_agno] goal completed conv={conversation.id} reason={goal_state.get("reason")!r}')
     return response.content, goal_state.get('fired', False)
@@ -425,8 +455,8 @@ def check_follow_ups():
                 continue
         send_follow_up.delay(conv.id)
 
-@shared_task(soft_time_limit=90, time_limit=120)
-def send_follow_up(conversation_id: int):
+@shared_task(bind=True, soft_time_limit=90, time_limit=120, max_retries=3)
+def send_follow_up(self, conversation_id: int):
     from django.utils import timezone
     from conversations.models import Conversation, Message
 
@@ -454,6 +484,13 @@ def send_follow_up(conversation_id: int):
 
     try:
         response_text, goal_completed = _call_agno(conv.agent, history, conversation=conv, contact=conv.contact)
+    except AgnoInferenceError as e:
+        delay = min(e.retry_after or 30 * (2 ** self.request.retries), 120)
+        try:
+            raise self.retry(exc=e, countdown=delay)
+        except self.MaxRetriesExceededError:
+            logger.error(f'[send_follow_up] rate limit persistente, desistindo: {e}')
+            return
     except Exception as e:
         logger.error(f'[send_follow_up] Erro no agno {e}')
         return
