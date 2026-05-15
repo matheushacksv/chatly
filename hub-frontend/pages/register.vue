@@ -34,7 +34,7 @@ const submit = async () => {
   loading.value = true
   try {
     await authStore.register(form)
-    await router.push('/')
+    await router.push('/dashboard')
   } catch (e: any) {
     error.value = e?.data?.detail || 'Erro ao criar conta'
   } finally {

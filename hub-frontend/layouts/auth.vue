@@ -11,7 +11,7 @@ useHead({
 
     <!-- Beam animations -->
     <div class="beam-border-v fixed left-[25%] pointer-events-none"></div>
-    <div class="beam-border-v fixed right-[25%] pointer-events-none" style="animation-delay: 2.5s"></div>
+    <div class="beam-border-v fixed left-auto right-[25%] pointer-events-none" style="animation-delay: 2.5s"></div>
 
     <!-- Content -->
     <div class="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 py-16">

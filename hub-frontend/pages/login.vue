@@ -13,7 +13,7 @@ const submit = async () => {
   loading.value = true
   try {
     await authStore.login(form.email, form.password)
-    await router.push('/')
+    await router.push('/dashboard')
   } catch (e: any) {
     error.value = e?.data?.detail || 'Email ou senha inválidos'
   } finally {
