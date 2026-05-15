@@ -1,6 +1,6 @@
 from integrations.models import PipedriveIntegration
 from integrations.schemas import MoveStageIn
-from accounts.utils import has_permission
+from accounts.utils import has_permission, is_owner_or_admin
 from labels.schemas import SetLabelsIn
 from contacts.models import Contact
 from integrations.models import WhatsAppInstance
@@ -231,9 +231,9 @@ def delete_sticker(request, sticker_id: int):
     return 204, None
 
 
-# ------------------------------------------------------------------ #
-# Rotas DINÂMICAS                                                    #
-# ------------------------------------------------------------------ #
+#* ------------------------------------------------------------------ #
+#* Rotas DINÂMICAS                                                    #
+#* ------------------------------------------------------------------ #
 
 @router.patch('/{conversation_id}', response={200: ConversationOut, 400: ErrorWithCodeSchema})
 def update_conversation(request, conversation_id: int, data: UpdateConversationIn):
@@ -457,6 +457,16 @@ def send_sticker_from_library(request, conversation_id: int, data: SendStickerIn
         logger.error(f'Erro ao enviar figurinha: {e}')
 
     return 201, message
+
+@router.post('/{conversation_id}/clear-memory', response={200: ConversationOut, 403: ErrorWithCodeSchema})
+def clear_ai_memory(request, conversation_id: int):
+    if not is_owner_or_admin(request.auth):
+        return 403, ErrorWithCodeSchema(detail='No permission', code='no_permission')
+    
+    conversation = get_object_or_404(Conversation, id=conversation_id, organization=request.auth.organization)
+    conversation.memory_reset_at = timezone.now()
+    conversation.save(update_fields=['memory_reset_at'])
+    return conversation
 
 # ------------------------------------------------------------------ #
 # Pipedrive                                                          #

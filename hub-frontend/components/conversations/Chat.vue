@@ -518,7 +518,23 @@ const canDeleteConversation = computed(() => {
   return authStore.user?.permissions?.can_delete_conversations ?? false
 })
 
+const canClearMemory = computed(() => {
+  const role = authStore.user?.role
+  return role === 'owner' || role === 'admin'
+})
+
 const { confirm: confirmDialog } = useConfirm()
+
+const clearMemory = async () => {
+  const ok = await confirmDialog(
+    'A IA passará a ignorar todas as mensagens anteriores desta conversa. O histórico continua visível no chat.',
+    { title: 'Apagar memória da IA?' },
+  )
+  if (!ok) return
+  try {
+    await api(`/api/conversations/${conv.value.id}/clear-memory`, { method: 'POST' })
+  } catch {}
+}
 
 const deleteConversation = async () => {
   const ok = await confirmDialog('Esta ação não pode ser desfeita.', { title: 'Excluir conversa?' })
@@ -737,6 +753,16 @@ const roleLabel = (role: string, msg?: any) => {
           title="Pipedrive"
         >
           <Icon icon="solar:case-round-bold-duotone" class="text-sm" />
+        </button>
+
+        <!-- Apagar memória da IA -->
+        <button
+          v-if="canClearMemory"
+          @click="clearMemory"
+          class="px-2 py-1.5 border border-white/10 text-neutral-500 hover:border-amber-500/30 hover:text-amber-400 transition-colors"
+          title="Apagar memória da IA"
+        >
+          <Icon icon="solar:eraser-bold-duotone" class="text-sm" />
         </button>
 
         <!-- Excluir conversa -->
