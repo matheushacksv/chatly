@@ -54,29 +54,55 @@ def transcribe_and_process_message(attachment_id: int):
         history[-1]['content'] = f'[Audio]: {transcription}'
 
     try:
-        response_text = _call_agno(conversation.agent, history, conversation=conversation, contact=conversation.contact)
+        response_text, goal_completed = _call_agno(conversation.agent, history, conversation=conversation, contact=conversation.contact)
     except Exception as e:
         logger.error(f'[transcribe_and_process_message] Erro no agno: {e}')
         return
 
-    message = Message.objects.create(
-        conversation=conversation,
-        role=Message.Role.ASSISTANT,
-        content=response_text,
-    )
-
-    from conversations.consumers import notify_new_message
-    notify_new_message(conversation.id, message)
+    if goal_completed:
+        from conversations.consumers import notify_conversation_updated
+        conversation.refresh_from_db()
+        notify_conversation_updated(conversation)
+        return
+    
+    if not response_text:
+        logger.warning('[transcribe_and_process_message] Agno retornou texto vazio')
+        return
+    
+    agent = conversation.agent
 
     try:
-        instance = conversation.agent.whatsapp_instance
+        instance = agent.whatsapp_instance
+    except Exception as e:
+        logger.error(f'[transcribe_and_process_mesage] Erro ao obter instância {e}')
+        return
+    
+    if agent.split_messages_enabled:
+        from conversations.utils.splitter import split_response
+        chunks = split_response(response_text)
+    else:
+        chunks = [response_text]
+
+    from conversations.consumers import notify_new_message
+    if len(chunks) <= 1:
+        message = Message.objects.create(
+            conversation=conversation,
+            role=Message.Role.ASSISTANT,
+            content=response_text,
+        )
+        notify_new_message(conversation.id, message)
         send_message(
             instance_api_key=instance.instance_api_key,
             phone=conversation.contact.phone,
             text=response_text
         )
-    except Exception as e:
-        logger.error(f'[transcribe_and_process_message] Erro ao enviar mensagem: {e}')
+    else:
+        deliver_split_messages.delay(
+            conversation_id=conversation.id,
+            instance_id=instance.id,
+            chunks=chunks
+        )
+
 
 @shared_task(bind=True, max_retries=3, soft_time_limit=45, time_limit=60)
 def send_whatsapp_message(self, message_id: int, instance_id: int = None):
@@ -427,15 +453,21 @@ def send_follow_up(conversation_id: int):
     conv.agent.system_prompt = f'{original_prompt}\n\n[FOLLOW-UP {conv.follow_up_count + 1}/{conv.agent.max_follow_ups}]: {extra}'
 
     try:
-        response_text = _call_agno(conv.agent, history, conversation=conv, contact=conv.contact)
+        response_text, goal_completed = _call_agno(conv.agent, history, conversation=conv, contact=conv.contact)
     except Exception as e:
         logger.error(f'[send_follow_up] Erro no agno {e}')
         return
     finally:
         conv.agent.system_prompt = original_prompt
 
+    if goal_completed:
+        conv.refresh_from_db()
+        notify_conversation_updated(conv)
+        return
+
     if not response_text:
         return
+    
 
     message = Message.objects.create(
         conversation=conv,
