@@ -202,3 +202,26 @@ def mark_activity_done(api_token:str, activity_id:int) -> bool:
     )
     return resp.json().get('success', False)
 
+def search_persons(api_token: str, term: str, limit: int = 20) -> list[dict]:
+    '''Busca pessoas no Pipedrive por nome ou telefone. Retorna id, name, phone, email'''
+
+    resp = httpx.get(
+        f'{V2_BASE_URL}/persons/search',
+        headers=_h(api_token),
+        params={'term': term, 'fields': 'name,phone', 'limit': limit},
+        timeout=10
+    )
+    items = (resp.json().get('data') or {}).get('items') or []
+    result = []
+    for it in items:
+        p = it.get('item') or {}
+        phones = p.get('phones') or []
+        emails = p.get('emails') or []
+        result.append(
+            {'pipedrive_person_id': p.get('id'),
+            'name': p.get('name') or '',
+            'phone': phones[0] if phones else '',
+            'email': emails[0] if emails else ''
+            }
+        )
+    return result

@@ -69,23 +69,35 @@ const onImported = async () => {
 
 const modal = ref(false)
 const editContact = ref<any>(null)
+const createTab = ref<'manual' | 'pipedrive'>('manual')
 const form = reactive({
   name: '',
   phone: '',
   email: '',
   customFields: [] as Field[],
+  pipedrivePersonId: null as number | null,
 })
 const formLoading = ref(false)
 const formError = ref('')
 
 const openCreate = () => {
   editContact.value = null
+  createTab.value = 'manual'
   form.name = ''
   form.phone = ''
   form.email = ''
   form.customFields = []
+  form.pipedrivePersonId = null
   formError.value = ''
   modal.value = true
+}
+
+const onPipedriveSelect = (person: any) => {
+  form.name = person.name || ''
+  form.phone = person.phone || ''
+  form.email = person.email || ''
+  form.pipedrivePersonId = person.pipedrive_person_id ?? null
+  createTab.value = 'manual'
 }
 
 const openEdit = (c: any) => {
@@ -94,6 +106,7 @@ const openEdit = (c: any) => {
   form.phone = c.phone ?? ''
   form.email = c.email ?? ''
   form.customFields = dictToFields(c.custom_fields)
+  form.pipedrivePersonId = null
   formError.value = ''
   modal.value = true
 }
@@ -105,11 +118,14 @@ const saveContact = async () => {
   formLoading.value = true
   formError.value = ''
   try {
-    const body = {
+    const body: Record<string, any> = {
       name: form.name,
       phone: form.phone,
       email: form.email,
       custom_fields: fieldsToDct(form.customFields),
+    }
+    if (!editContact.value && form.pipedrivePersonId) {
+      body.pipedrive_person_id = form.pipedrivePersonId
     }
     if (editContact.value) {
       const updated = await api<any>(`/api/contacts/${editContact.value.id}`, {
@@ -473,9 +489,43 @@ const formatTime = (dt: string) => {
             </h2>
           </div>
 
+          <!-- Tabs (só no modo criar) -->
+          <div v-if="!editContact" class="flex border-b border-white/5 px-8">
+            <button
+              type="button"
+              @click="createTab = 'manual'"
+              class="pb-2.5 mr-6 text-[10px] font-mono uppercase tracking-widest border-b-2 -mb-px transition-colors"
+              :class="createTab === 'manual' ? 'text-accent border-accent' : 'text-neutral-600 border-transparent hover:text-neutral-400'"
+            >
+              Manual
+            </button>
+            <button
+              type="button"
+              @click="createTab = 'pipedrive'"
+              class="pb-2.5 text-[10px] font-mono uppercase tracking-widest border-b-2 -mb-px transition-colors"
+              :class="createTab === 'pipedrive' ? 'text-accent border-accent' : 'text-neutral-600 border-transparent hover:text-neutral-400'"
+            >
+              Pipedrive
+            </button>
+          </div>
+
           <!-- Conteúdo com scroll -->
           <form @submit.prevent="saveContact" class="flex flex-col flex-1 min-h-0">
-            <div class="overflow-y-auto flex-1 px-8 space-y-4">
+            <div class="overflow-y-auto flex-1 px-8 space-y-4 pt-4">
+              <!-- Aba Pipedrive -->
+              <div v-if="!editContact && createTab === 'pipedrive'">
+                <p class="text-[10px] font-mono text-neutral-600 mb-3 leading-relaxed">
+                  Selecione uma pessoa do Pipedrive — os dados preenchem o formulário.
+                </p>
+                <PipedrivePersonSearch @select="onPipedriveSelect" />
+              </div>
+
+              <!-- Aba Manual -->
+              <template v-else>
+              <div v-if="form.pipedrivePersonId" class="flex items-center gap-2 px-3 py-2 bg-accent/5 border border-accent/30">
+                <Icon icon="solar:link-bold-duotone" class="text-accent text-sm shrink-0" />
+                <p class="text-[10px] font-mono text-neutral-400">Vinculado ao Pipedrive (#{{ form.pipedrivePersonId }})</p>
+              </div>
               <div>
                 <label class="field-label">Nome</label>
                 <div class="input-wrapper">
@@ -541,6 +591,7 @@ const formatTime = (dt: string) => {
                   </div>
                 </div>
               </div>
+              </template>
             </div>
 
             <!-- Footer fixo -->
@@ -550,7 +601,7 @@ const formatTime = (dt: string) => {
                 <button type="button" @click="modal = false" class="flex-1 py-3 border border-white/10 text-neutral-400 text-xs font-mono uppercase tracking-wider hover:border-white/20 hover:text-white transition-colors">
                   Cancelar
                 </button>
-                <button type="submit" :disabled="formLoading" class="btn-primary flex-1 disabled:opacity-50">
+                <button type="submit" :disabled="formLoading || (!editContact && createTab === 'pipedrive')" class="btn-primary flex-1 disabled:opacity-50">
                   <div class="corner-tl"></div>
                   <div class="corner-br"></div>
                   <span class="text-white text-xs font-mono uppercase tracking-wider">

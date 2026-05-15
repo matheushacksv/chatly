@@ -101,14 +101,28 @@ def start_conversation(request, data: StartConversationIn):
     from core.utils.phone import normalize_phone
     phone = normalize_phone(data.phone)
 
-    contact, _ = Contact.objects.get_or_create(
+    contact, created = Contact.objects.get_or_create(
         organization=request.auth.organization,
         phone=phone,
-        defaults={'name': data.name or phone},
+        defaults={
+            'name': data.name or phone,
+            'email': data.email or '',
+            'pipedrive_person_id': data.pipedrive_person_id,
+        },
     )
-    if data.name and not _:
-        contact.name = data.name
-        contact.save(update_fields=['name'])
+    if not created:
+        updates = []
+        if data.name:
+            contact.name = data.name
+            updates.append('name')
+        if data.email and not contact.email:
+            contact.email = data.email
+            updates.append('email')
+        if data.pipedrive_person_id and not contact.pipedrive_person_id:
+            contact.pipedrive_person_id = data.pipedrive_person_id
+            updates.append('pipedrive_person_id')
+        if updates:
+            contact.save(update_fields=updates)
 
     from agents.models import AIAgent
     agent = None

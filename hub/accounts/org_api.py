@@ -11,7 +11,7 @@ from accounts.utils import is_owner_or_admin
 from integrations.schemas import PipedriveIntegrationIn, PipedriveIntegrationOut, PipedriveConfigIn, PipedrivePipelineOut
 from integrations.models import PipedriveIntegration
 from accounts.utils import has_permission
-from integrations.pipedrive_services import validate_integration, pipeline_with_stages
+from integrations.pipedrive_services import validate_integration, pipeline_with_stages, search_persons
 
 router = Router(tags=['Organization'])
 
@@ -269,6 +269,18 @@ def delete_pipedrive_integration(request):
         return 204, None
     except PipedriveIntegration.DoesNotExist:
         return 404, GenericErrorSchema(detail='Integration not found')
+
+@router.get('/integrations/pipedrive/persons', response={200: list, 400: GenericErrorSchema})
+def search_pipedrive_persons(request, q: str):
+    '''Busca pessoas no Pipedrive por nome ou telefone (lazy, server-side)'''
+    if len(q.strip()) < 2:
+        return 200, []
+    integration = PipedriveIntegration.objects.filter(
+        organization=request.auth.organization, is_active=True
+    ).first()
+    if integration is None:
+        return 400, GenericErrorSchema(detail='Integração Pipedrive não configurada')
+    return 200, search_persons(api_token=integration.api_key, term=q.strip())
 
 #* ----- Business Hours endpoints -----
 

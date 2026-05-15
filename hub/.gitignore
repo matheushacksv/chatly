@@ -25,3 +25,12 @@ celerybeat.pid
 
 # Design artifacts
 design-system.html
+
+.pytest_cache
+conftest.py
+
+test_pipedrive_import.py
+test_update_deal_stage.py
+test_pipedrive_start.py
+settings_test.py
+test_pipedrive.py

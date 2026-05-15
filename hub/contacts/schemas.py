@@ -10,6 +10,7 @@ class ContactIn(Schema):
     email: Optional[str] = None
     phone: Optional[str] = None
     custom_fields: dict = {}
+    pipedrive_person_id: Optional[int] = None
 
 class ContactOut(Schema):
     id: int
