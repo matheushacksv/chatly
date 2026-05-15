@@ -17,6 +17,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000',
+      // URL absoluta do domínio da aplicação (ex: https://app.chatly.ia.br).
+      // Vazio em dev → links de login/registro ficam relativos no mesmo host.
+      appUrl: process.env.NUXT_PUBLIC_APP_URL || '',
     },
   },
 

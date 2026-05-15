@@ -5,6 +5,11 @@ useHead({
 
 const authStore = useAuthStore()
 const mobileOpen = ref(false)
+
+// Login/registro/painel vivem no domínio da aplicação (app.*).
+// Em dev appUrl é vazio → links relativos no mesmo host.
+const appUrl = useRuntimeConfig().public.appUrl
+const appLink = (path: string) => `${appUrl}${path}`
 </script>
 
 <template>
@@ -25,18 +30,18 @@ const mobileOpen = ref(false)
           <a href="/#recursos" class="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors">Recursos</a>
           <a href="/#como-funciona" class="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors">Como funciona</a>
           <template v-if="authStore.isAuthenticated">
-            <NuxtLink to="/dashboard" class="text-xs font-mono uppercase tracking-widest text-accent hover:text-white transition-colors">
+            <a :href="appLink('/dashboard')" class="text-xs font-mono uppercase tracking-widest text-accent hover:text-white transition-colors">
               Ir ao painel →
-            </NuxtLink>
+            </a>
           </template>
           <template v-else>
-            <NuxtLink to="/login" class="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors">Entrar</NuxtLink>
-            <NuxtLink
-              to="/register"
+            <a :href="appLink('/login')" class="text-xs font-mono uppercase tracking-widest text-neutral-400 hover:text-white transition-colors">Entrar</a>
+            <a
+              :href="appLink('/register')"
               class="relative inline-flex items-center px-5 py-2.5 border border-white/10 hover:border-accent transition-colors"
             >
               <span class="text-white text-xs font-medium uppercase tracking-wider">Começar agora</span>
-            </NuxtLink>
+            </a>
           </template>
         </nav>
 
@@ -53,10 +58,10 @@ const mobileOpen = ref(false)
       <div v-if="mobileOpen" class="md:hidden border-t border-white/5 px-6 py-4 flex flex-col gap-4 bg-canvas">
         <a href="/#recursos" class="text-xs font-mono uppercase tracking-widest text-neutral-400" @click="mobileOpen = false">Recursos</a>
         <a href="/#como-funciona" class="text-xs font-mono uppercase tracking-widest text-neutral-400" @click="mobileOpen = false">Como funciona</a>
-        <NuxtLink v-if="authStore.isAuthenticated" to="/dashboard" class="text-xs font-mono uppercase tracking-widest text-accent">Ir ao painel →</NuxtLink>
+        <a v-if="authStore.isAuthenticated" :href="appLink('/dashboard')" class="text-xs font-mono uppercase tracking-widest text-accent">Ir ao painel →</a>
         <template v-else>
-          <NuxtLink to="/login" class="text-xs font-mono uppercase tracking-widest text-neutral-400">Entrar</NuxtLink>
-          <NuxtLink to="/register" class="text-xs font-mono uppercase tracking-widest text-accent">Começar agora →</NuxtLink>
+          <a :href="appLink('/login')" class="text-xs font-mono uppercase tracking-widest text-neutral-400">Entrar</a>
+          <a :href="appLink('/register')" class="text-xs font-mono uppercase tracking-widest text-accent">Começar agora →</a>
         </template>
       </div>
     </header>
@@ -76,7 +81,7 @@ const mobileOpen = ref(false)
         <nav class="flex items-center gap-6">
           <NuxtLink to="/privacidade" class="text-xs font-mono text-neutral-500 hover:text-white transition-colors">Privacidade</NuxtLink>
           <NuxtLink to="/cookies" class="text-xs font-mono text-neutral-500 hover:text-white transition-colors">Cookies</NuxtLink>
-          <NuxtLink to="/login" class="text-xs font-mono text-neutral-500 hover:text-white transition-colors">Entrar</NuxtLink>
+          <a :href="appLink('/login')" class="text-xs font-mono text-neutral-500 hover:text-white transition-colors">Entrar</a>
         </nav>
         <p class="text-xs font-mono text-neutral-600">© {{ new Date().getFullYear() }} Hack Softwares</p>
       </div>

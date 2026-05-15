@@ -3,6 +3,10 @@ import { Icon } from '@iconify/vue'
 
 definePageMeta({ layout: 'landing' })
 
+// Login/registro vivem no domínio da aplicação (app.*).
+const appUrl = useRuntimeConfig().public.appUrl
+const appLink = (path: string) => `${appUrl}${path}`
+
 useSeoMeta({
   title: 'Atendimento WhatsApp com agentes de IA',
   description:
@@ -80,20 +84,20 @@ const steps = [
         </p>
 
         <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <NuxtLink
-            to="/register"
+          <a
+            :href="appLink('/register')"
             class="relative inline-flex items-center justify-center px-8 py-4 border border-white/10 hover:border-accent transition-colors group w-full sm:w-auto"
           >
             <div class="corner-tl"></div>
             <div class="corner-br"></div>
             <span class="text-white text-sm font-medium uppercase tracking-wider">Começar agora</span>
-          </NuxtLink>
-          <NuxtLink
-            to="/login"
+          </a>
+          <a
+            :href="appLink('/login')"
             class="inline-flex items-center justify-center px-8 py-4 text-sm font-mono uppercase tracking-wider text-neutral-400 hover:text-white transition-colors w-full sm:w-auto"
           >
             Já tenho conta →
-          </NuxtLink>
+          </a>
         </div>
       </div>
     </section>
@@ -153,14 +157,14 @@ const steps = [
         <p class="mt-3 text-neutral-400 max-w-md mx-auto">
           Crie sua organização e conecte o primeiro número em minutos.
         </p>
-        <NuxtLink
-          to="/register"
+        <a
+          :href="appLink('/register')"
           class="mt-8 relative inline-flex items-center justify-center px-8 py-4 border border-white/10 hover:border-accent transition-colors"
         >
           <div class="corner-tl"></div>
           <div class="corner-br"></div>
           <span class="text-white text-sm font-medium uppercase tracking-wider">Criar organização</span>
-        </NuxtLink>
+        </a>
       </div>
     </section>
   </div>

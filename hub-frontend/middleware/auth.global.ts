@@ -8,6 +8,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     authStore.loadFromStorage()
   }
 
+  // No domínio da aplicação (app.*) a raiz não é a landing — vai para o painel
+  if (to.path === '/' && window.location.host.startsWith('app.')) {
+    return navigateTo('/dashboard')
+  }
+
   const isPublicRoute =
     to.path === '/' ||
     to.path === '/privacidade' ||
