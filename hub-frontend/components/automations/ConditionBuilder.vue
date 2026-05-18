@@ -4,17 +4,23 @@ import { Icon } from '@iconify/vue'
 interface Rule { field: string; op: string; value: string }
 interface Logic { combinator: string; rules: Rule[] }
 
-const props = defineProps<{ logic: Logic }>()
+const props = defineProps<{
+  logic: Logic
+  instances?: any[]
+  members?: any[]
+}>()
 
+// vtype define como o campo "valor" é editado
 const SYSTEM_FIELDS = [
-  { value: 'contact.name', label: 'Contato · nome' },
-  { value: 'contact.email', label: 'Contato · email' },
-  { value: 'contact.phone', label: 'Contato · telefone' },
-  { value: 'conversation.status', label: 'Conversa · status' },
-  { value: 'conversation.assigned_to', label: 'Conversa · responsável' },
-  { value: 'conversation.instance', label: 'Conversa · instância' },
-  { value: 'conversation.ai_active', label: 'Conversa · IA ativa' },
-  { value: 'message.content', label: 'Mensagem · conteúdo' },
+  { value: 'contact.name', label: 'Contato · nome', vtype: 'text' },
+  { value: 'contact.email', label: 'Contato · email', vtype: 'text' },
+  { value: 'contact.phone', label: 'Contato · telefone', vtype: 'text' },
+  { value: 'conversation.status', label: 'Conversa · status', vtype: 'select',
+    options: [{ value: 'open', label: 'Aberta' }, { value: 'closed', label: 'Fechada' }] },
+  { value: 'conversation.assigned_to', label: 'Conversa · responsável', vtype: 'member' },
+  { value: 'conversation.instance', label: 'Conversa · instância', vtype: 'instance' },
+  { value: 'conversation.ai_active', label: 'Conversa · IA ativa', vtype: 'boolean' },
+  { value: 'message.content', label: 'Mensagem · conteúdo', vtype: 'text' },
 ]
 
 const OPERATORS = [
@@ -36,8 +42,13 @@ const isCustom = (r: Rule) => (r.field || '').startsWith(CUSTOM_PREFIX)
 const customKey = (r: Rule) => isCustom(r) ? r.field.slice(CUSTOM_PREFIX.length) : ''
 const fieldSelectValue = (r: Rule) => isCustom(r) ? '__custom__' : r.field
 
+const fieldMeta = (r: Rule) => SYSTEM_FIELDS.find(f => f.value === r.field)
+// campo personalizado = texto livre; campo de sistema = vtype declarado
+const valueType = (r: Rule) => isCustom(r) ? 'text' : (fieldMeta(r)?.vtype ?? 'text')
+
 const onFieldSelect = (r: Rule, val: string) => {
   r.field = val === '__custom__' ? CUSTOM_PREFIX : val
+  r.value = ''  // reseta valor ao trocar de campo
 }
 const onCustomKey = (r: Rule, key: string) => {
   r.field = CUSTOM_PREFIX + key.trim()
@@ -79,7 +90,7 @@ const removeRule = (i: number) => props.logic.rules.splice(i, 1)
       class="bg-canvas border border-white/10 p-2 space-y-2"
     >
       <div class="flex items-start gap-2">
-        <div class="flex-1 space-y-2">
+        <div class="flex-1 min-w-0 space-y-2">
           <!-- campo -->
           <select
             :value="fieldSelectValue(rule)"
@@ -99,23 +110,75 @@ const removeRule = (i: number) => props.logic.rules.splice(i, 1)
             class="w-full bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
           />
 
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <!-- operador -->
             <select
               v-model="rule.op"
-              class="bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+              class="shrink-0 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
             >
               <option v-for="o in OPERATORS" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
 
-            <!-- valor -->
-            <input
-              v-if="!noValue(rule.op)"
-              v-model="rule.value"
-              type="text"
-              placeholder="valor"
-              class="flex-1 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
-            />
+            <!-- valor: editor varia por tipo de campo -->
+            <template v-if="!noValue(rule.op)">
+              <!-- status / opções fixas -->
+              <select
+                v-if="valueType(rule) === 'select'"
+                v-model="rule.value"
+                class="grow basis-28 min-w-0 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+              >
+                <option value="">—</option>
+                <option v-for="o in fieldMeta(rule)?.options" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+
+              <!-- IA ativa / booleano -->
+              <select
+                v-else-if="valueType(rule) === 'boolean'"
+                v-model="rule.value"
+                class="grow basis-28 min-w-0 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+              >
+                <option value="">—</option>
+                <option value="true">Sim (ativa)</option>
+                <option value="false">Não (inativa)</option>
+              </select>
+
+              <!-- instância da conta -->
+              <select
+                v-else-if="valueType(rule) === 'instance'"
+                v-model="rule.value"
+                class="grow basis-28 min-w-0 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+              >
+                <option value="">—</option>
+                <option
+                  v-for="inst in props.instances"
+                  :key="inst.id"
+                  :value="inst.instance_name || inst.name"
+                >{{ inst.instance_name || inst.name }}</option>
+              </select>
+
+              <!-- responsável / membro da org -->
+              <select
+                v-else-if="valueType(rule) === 'member'"
+                v-model="rule.value"
+                class="grow basis-28 min-w-0 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+              >
+                <option value="">—</option>
+                <option
+                  v-for="m in props.members"
+                  :key="m.id || m.user_id"
+                  :value="m.email || m.user_email"
+                >{{ m.name || m.email || m.user_email }}</option>
+              </select>
+
+              <!-- texto livre -->
+              <input
+                v-else
+                v-model="rule.value"
+                type="text"
+                placeholder="valor"
+                class="grow basis-28 min-w-0 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+              />
+            </template>
           </div>
         </div>
 
