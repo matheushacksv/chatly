@@ -16,6 +16,7 @@ ACTION_CHOICES = [
     ('http_request', 'Requisição HTTP'),
     ('toggle_ai', 'Ativar/desativar IA'),
     ('add_label', 'Adicionar etiqueta'),
+    ('condition', 'Condição (Se/Senão)'),
     ('remove_label', 'Remover etiqueta'),
     ('wait_delay', 'Aguardar'),
     ('assign_to_user', 'Atribuir a usuário'),
@@ -43,6 +44,8 @@ class Automation(models.Model):
 
 class AutomationStep(models.Model):
     automation = models.ForeignKey(Automation, on_delete=models.CASCADE, related_name='steps')
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
+    branch = models.CharField(max_length=8, default='', blank=True)
     order = models.PositiveIntegerField()
     action_type = models.CharField(max_length=64, choices=ACTION_CHOICES)
     config = models.JSONField(default=dict)

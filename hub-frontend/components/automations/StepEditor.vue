@@ -15,8 +15,16 @@ interface ActionMeta {
   fields: FieldMeta[]
 }
 
+interface Step {
+  order?: number
+  action_type: string
+  config: Record<string, any>
+  then_steps?: Step[]
+  else_steps?: Step[]
+}
+
 const props = defineProps<{
-  step: { order: number; action_type: string; config: Record<string, any> }
+  step: Step
   index: number
   actions: ActionMeta[]
   templates: any[]
@@ -32,12 +40,14 @@ const emit = defineEmits<{
 }>()
 
 const currentAction = computed(() => props.actions.find(a => a.type === props.step.action_type))
+const isCondition = computed(() => props.step.action_type === 'condition')
 
 const api = useApi()
 const pipelines = useState<any[]>('pipedrive-pipelines', () => [])
 const pipelinesFetched = useState<boolean>('pipedrive-pipelines-fetched', () => false)
 
 onMounted(async () => {
+  if (isCondition.value) ensureBranches()
   if (pipelinesFetched.value) return
   const needs = props.actions.some(a => a.fields.some(f => f.type === 'pipedrive_stage_select'))
   if (!needs) return
@@ -47,9 +57,41 @@ onMounted(async () => {
   } catch {}
 })
 
+const ensureBranches = () => {
+  if (!props.step.then_steps) props.step.then_steps = []
+  if (!props.step.else_steps) props.step.else_steps = []
+  if (!props.step.config.logic) props.step.config.logic = { combinator: 'AND', rules: [] }
+}
+
+const newStep = (): Step => ({
+  action_type: props.actions.find(a => a.type !== 'condition')?.type ?? 'send_message',
+  config: {},
+  then_steps: [],
+  else_steps: [],
+})
+
 const onActionChange = () => {
   // resetar config ao mudar tipo
   props.step.config = {}
+  if (isCondition.value) ensureBranches()
+}
+
+const addChild = (branch: 'then' | 'else') => {
+  ensureBranches()
+  const arr = branch === 'then' ? props.step.then_steps! : props.step.else_steps!
+  arr.push(newStep())
+}
+
+const removeChild = (arr: Step[], idx: number) => {
+  arr.splice(idx, 1)
+}
+
+const moveChild = (arr: Step[], idx: number, dir: -1 | 1) => {
+  const t = idx + dir
+  if (t < 0 || t >= arr.length) return
+  const tmp = arr[idx]
+  arr[idx] = arr[t]
+  arr[t] = tmp
 }
 
 const renderJson = (val: any) => {
@@ -97,7 +139,71 @@ const parseJson = (raw: string, key: string) => {
       </div>
     </div>
 
-    <div v-if="currentAction" class="px-4 py-3 space-y-3">
+    <!-- CONDIÇÃO: builder + ramos Então/Senão -->
+    <div v-if="isCondition" class="px-4 py-3 space-y-4">
+      <AutomationsConditionBuilder :logic="props.step.config.logic" />
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-accent">Então</span>
+          <button
+            @click="addChild('then')"
+            class="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-accent/80 px-2.5 py-1 border border-accent/30"
+          >+ Ação</button>
+        </div>
+        <div class="border-l-2 border-accent/30 pl-3 space-y-2">
+          <p v-if="!props.step.then_steps || props.step.then_steps.length === 0" class="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
+            Vazio
+          </p>
+          <AutomationsStepEditor
+            v-for="(child, ci) in props.step.then_steps"
+            :key="`then-${ci}`"
+            :step="child"
+            :index="ci"
+            :actions="actions"
+            :templates="templates"
+            :labels="labels"
+            :members="members"
+            :instances="instances"
+            @remove="removeChild(props.step.then_steps!, ci)"
+            @move-up="moveChild(props.step.then_steps!, ci, -1)"
+            @move-down="moveChild(props.step.then_steps!, ci, 1)"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Senão</span>
+          <button
+            @click="addChild('else')"
+            class="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-200 px-2.5 py-1 border border-white/15"
+          >+ Ação</button>
+        </div>
+        <div class="border-l-2 border-white/15 pl-3 space-y-2">
+          <p v-if="!props.step.else_steps || props.step.else_steps.length === 0" class="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
+            Vazio
+          </p>
+          <AutomationsStepEditor
+            v-for="(child, ci) in props.step.else_steps"
+            :key="`else-${ci}`"
+            :step="child"
+            :index="ci"
+            :actions="actions"
+            :templates="templates"
+            :labels="labels"
+            :members="members"
+            :instances="instances"
+            @remove="removeChild(props.step.else_steps!, ci)"
+            @move-up="moveChild(props.step.else_steps!, ci, -1)"
+            @move-down="moveChild(props.step.else_steps!, ci, 1)"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- AÇÃO COMUM: campos dinâmicos -->
+    <div v-else-if="currentAction" class="px-4 py-3 space-y-3">
       <div v-if="currentAction.fields.length === 0" class="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
         Sem parâmetros
       </div>

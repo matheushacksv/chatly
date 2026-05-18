@@ -7,6 +7,8 @@ class AutomationStepIn(Schema):
     order: int
     action_type: str
     config: dict = {}
+    then_steps: list['AutomationStepIn'] = []
+    else_steps: list['AutomationStepIn'] = []
 
 
 class AutomationStepOut(Schema):
@@ -14,6 +16,17 @@ class AutomationStepOut(Schema):
     order: int
     action_type: str
     config: dict
+    branch: str = ''
+    then_steps: list['AutomationStepOut'] = []
+    else_steps: list['AutomationStepOut'] = []
+
+    @staticmethod
+    def resolve_then_steps(obj):
+        return [c for c in obj.children.all() if c.branch == 'then']
+    
+    @staticmethod
+    def resolve_else_steps(obj):
+        return [c for c in obj.children.all() if c.branch == 'else']
 
 
 class AutomationIn(Schema):
@@ -36,7 +49,7 @@ class AutomationOut(Schema):
 
     @staticmethod
     def resolve_steps(obj):
-        return list(obj.steps.all())
+        return [s for s in obj.steps.all() if s.parent_id is None]
 
 
 class AutomationListOut(Schema):

@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from ninja import Router
+from .utils.helpers import _validate_steps, _save_steps
 
 from core.utils.errors import GenericErrorSchema
 
@@ -78,6 +79,13 @@ ACTIONS_META = [
         ],
     },
     {
+        'type': 'condition',
+        'label': 'Condição (Se/Senão)',
+        'fields': [
+            {'key': 'logic', 'label': 'Regras', 'type': 'condition_builder', 'required': True}
+        ],
+    },
+    {
         'type': 'assign_to_user',
         'label': 'Atribuir a usuário',
         'fields': [
@@ -123,9 +131,9 @@ def create_automation(request, data: AutomationIn):
         return 400, {'detail': f'trigger_type inválido: {data.trigger_type}'}
 
     valid_actions = {a for a, _ in ACTION_CHOICES}
-    for step in data.steps:
-        if step.action_type not in valid_actions:
-            return 400, {'detail': f'action_type inválido: {step.action_type}'}
+    bad = _validate_steps(data.steps, valid_actions)
+    if bad:
+        return 400, {'detail': f'action_type inválido: {bad}'}
 
     with transaction.atomic():
         automation = Automation.objects.create(
@@ -135,14 +143,7 @@ def create_automation(request, data: AutomationIn):
             trigger_filters=data.trigger_filters,
             is_active=data.is_active,
         )
-        AutomationStep.objects.bulk_create([
-            AutomationStep(
-                automation=automation,
-                order=s.order,
-                action_type=s.action_type,
-                config=s.config,
-            ) for s in data.steps
-        ])
+        _save_steps(automation, data.steps, None, '', [0])
 
     return 201, automation
 
@@ -165,9 +166,9 @@ def update_automation(request, automation_id: int, data: AutomationIn):
         return 400, {'detail': f'trigger_type inválido: {data.trigger_type}'}
 
     valid_actions = {a for a, _ in ACTION_CHOICES}
-    for step in data.steps:
-        if step.action_type not in valid_actions:
-            return 400, {'detail': f'action_type inválido: {step.action_type}'}
+    bad = _validate_steps(data.steps, valid_actions)
+    if bad:
+        return 400, {'detail': f'action_type inválido: {bad}'}
 
     with transaction.atomic():
         automation.name = data.name
@@ -177,14 +178,7 @@ def update_automation(request, automation_id: int, data: AutomationIn):
         automation.save()
 
         automation.steps.all().delete()
-        AutomationStep.objects.bulk_create([
-            AutomationStep(
-                automation=automation,
-                order=s.order,
-                action_type=s.action_type,
-                config=s.config,
-            ) for s in data.steps
-        ])
+        _save_steps(automation, data.steps, None, '', [0])
 
     return automation
 

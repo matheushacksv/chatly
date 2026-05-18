@@ -29,16 +29,20 @@ def build_context(run_context: dict) -> dict:
 
     ctx = {}
 
+    def _contact_dict(c):
+        return {
+            'id': c.id,
+            'name': c.name or '',
+            'phone': c.phone or '',
+            'email': c.email or '',
+            'custom_fields': c.custom_fields or {}
+        }
+    
     contact_id = run_context.get('contact_id')
     if contact_id:
         contact = Contact.objects.filter(id=contact_id).first()
         if contact:
-            ctx['contact'] = {
-                'id': contact.id,
-                'name': contact.name or '',
-                'phone': contact.phone or '',
-                'email': contact.email or '',
-            }
+            ctx['contact'] = _contact_dict(contact)
 
     conversation_id = run_context.get('conversation_id')
     if conversation_id:
@@ -47,14 +51,17 @@ def build_context(run_context: dict) -> dict:
             ctx['conversation'] = {
                 'id': conv.id,
                 'status': conv.status,
+                'ai_active': conv.ai_active,
+                'assigned_to_id': conv.assigned_to_id,
+                'assigned_to': (
+                    getattr(conv.assigned_to, 'email', '')
+                    if conv.assigned_to_id else ''
+                ),
+                'instance_id': conv.instance_id,
+                'instance': getattr(conv.instance, 'instance_name', '') if conv.instance_id else '',
             }
             if 'contact' not in ctx and conv.contact:
-                ctx['contact'] = {
-                    'id': conv.contact.id,
-                    'name': conv.contact.name or '',
-                    'phone': conv.contact.phone or '',
-                    'email': conv.contact.email or '',
-                }
+                ctx['contact'] = _contact_dict(conv.contact)
 
     message_id = run_context.get('message_id')
     if message_id:
