@@ -7,7 +7,14 @@ const route = useRoute()
 const api = useApi()
 const automationId = Number(route.params.id)
 
-interface Step { order: number; action_type: string; config: Record<string, any>; id?: number }
+interface Step {
+  order?: number
+  action_type: string
+  config: Record<string, any>
+  id?: number
+  then_steps?: Step[]
+  else_steps?: Step[]
+}
 interface Automation {
   id: number
   name: string
@@ -62,15 +69,15 @@ const fetchAll = async () => {
 
 const addStep = () => {
   form.steps.push({
-    order: form.steps.length,
-    action_type: actions.value[0]?.type ?? 'send_message',
+    action_type: actions.value.find(a => a.type !== 'condition')?.type ?? 'send_message',
     config: {},
+    then_steps: [],
+    else_steps: [],
   })
 }
 
 const removeStep = (idx: number) => {
   form.steps.splice(idx, 1)
-  form.steps.forEach((s, i) => (s.order = i))
 }
 
 const move = (idx: number, dir: -1 | 1) => {
@@ -79,8 +86,15 @@ const move = (idx: number, dir: -1 | 1) => {
   const tmp = form.steps[idx]
   form.steps[idx] = form.steps[t]
   form.steps[t] = tmp
-  form.steps.forEach((s, i) => (s.order = i))
 }
+
+// achata a árvore para o payload da API (order é reatribuído no backend)
+const serializeStep = (s: Step): any => ({
+  action_type: s.action_type,
+  config: s.config,
+  then_steps: (s.then_steps || []).map(serializeStep),
+  else_steps: (s.else_steps || []).map(serializeStep),
+})
 
 const save = async () => {
   saving.value = true
@@ -94,7 +108,7 @@ const save = async () => {
         trigger_type: form.trigger_type,
         trigger_filters: form.trigger_filters,
         is_active: form.is_active,
-        steps: form.steps.map((s, i) => ({ order: i, action_type: s.action_type, config: s.config })),
+        steps: form.steps.map(serializeStep),
       },
     })
     successMsg.value = 'Salvo'

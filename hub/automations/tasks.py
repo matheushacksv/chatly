@@ -1,6 +1,9 @@
 import logging
 from celery import shared_task
 from django.utils import timezone
+from .conditions import evaluate_condition
+from .templating import build_context
+from .utils.helpers import _step_active
 
 from .models import AutomationRun
 
@@ -21,10 +24,32 @@ def run_automation(self, run_id: int):
         return
 
     steps = list(run.automation.steps.order_by('order'))
+    by_id = {s.id: s for s in steps}
     organization_id = run.automation.organization_id
 
     for step in steps[run.current_step:]:
         try:
+            branch_choices = (run.context or {}).get('branch_choices', {})
+
+            if not _step_active(step, by_id, branch_choices):
+                run.current_step += 1
+                run.save(update_fields=['current_step'])
+                continue
+
+            if step.action_type == 'condition':
+                ok = evaluate_condition(
+                    step.config.get('logic', {}),
+                    build_context(run.context or {})
+                )
+                ctx = dict(run.context or {})
+                choices = dict(ctx.get('branch_choices', {}))
+                choices[str(step.id)] = 'then' if ok else 'else'
+                ctx['branch_choices'] = choices
+                run.context = ctx
+                run.current_step += 1
+                run.save(update_fields=['context', 'current_step'])
+                continue
+
             if step.action_type == 'wait_delay':
                 seconds = int(step.config.get('seconds', 60))
                 run.current_step = run.current_step + 1
@@ -35,7 +60,7 @@ def run_automation(self, run_id: int):
             context = dict(run.context or {})
             context['from_automation'] = True
             execute_action(step, context, organization_id)
-            run.current_step = run.current_step + 1
+            run.current_step += 1
             run.save(update_fields=['current_step'])
 
         except ValueError as exc:
