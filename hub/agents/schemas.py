@@ -38,6 +38,7 @@ class AIAgentIn(Schema):
     split_max_delay_ms: int = 3500
     accumulate_messages_enabled: bool = False
     accumulate_window_seconds: int = 10
+    goal_automation_id: Optional[int] = None
 
 class AIAgentOut(Schema):
     id: int
@@ -67,6 +68,7 @@ class AIAgentOut(Schema):
     split_max_delay_ms: int = 3500
     accumulate_messages_enabled: bool = False
     accumulate_window_seconds: int = 10
+    goal_automation_id: Optional[int] = None
 
 class GoalCompletionOut(Schema):
     id: int

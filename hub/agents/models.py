@@ -41,6 +41,7 @@ class AIAgent(models.Model):
     goal_enabled = models.BooleanField(default=False)
     goal_description = models.TextField(blank=True, default='')
     goal_slots = models.JSONField(default=list, blank=True)
+    goal_automation = models.ForeignKey('automations.Automation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
     GOAL_ACTION_CHOICES = [
         ('deactivate_ai', 'Desativar IA'),

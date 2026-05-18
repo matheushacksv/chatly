@@ -225,3 +225,40 @@ def search_persons(api_token: str, term: str, limit: int = 20) -> list[dict]:
             }
         )
     return result
+
+def deal_fields(api_key: str) -> list[dict]:
+    '''Lista campos do Deal (inclui personalizados). Retorna [{key, name}]'''
+
+    fields = []
+    cursor = None
+    while True:
+        params = {'limit': 500}
+        if cursor:
+            params['cursor'] = cursor
+        resp = httpx.get(
+            f'{V2_BASE_URL}/dealFields',
+            params=params,
+            headers=_h(api_key),
+            timeout=10
+        )
+        body = resp.json()
+        fields.extend(body.get('data') or [])
+        cursor = (body.get('additional_data') or {}).get('next_cursor')
+        if not cursor:
+            break
+    return [{'key': f['field_code'], 'name': f['field_name']}
+            for f in fields
+            if f.get('is_custom_field') and f.get('is_writable')]
+
+def update_deal_fields(api_key: str, deal_id: int, fields: dict) -> bool:
+    '''Patch custom fields do deal'''
+
+    resp = httpx.patch(
+        f'{V2_BASE_URL}/deals/{deal_id}',
+        headers=_h(api_key),
+        json={'custom_fields': fields},
+        timeout=10
+    )
+    return resp.json().get('data') is not None
+
+
