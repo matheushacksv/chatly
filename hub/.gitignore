@@ -34,3 +34,4 @@ test_update_deal_stage.py
 test_pipedrive_start.py
 settings_test.py
 test_pipedrive.py
+test*

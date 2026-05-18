@@ -84,9 +84,10 @@ const form = reactive({
   follow_up_respect_hours: false,
   goal_enabled: false,
   goal_description: '',
-  goal_slots: [] as { key: string; label: string; required: boolean }[],
+  goal_slots: [] as { key: string; label: string; required: boolean; pipedrive_field?: string }[],
   goal_action: '' as '' | 'deactivate_ai' | 'close_conversation' | 'assign_to_user' | 'trigger_automation',
   goal_assign_to_id: null as number | null,
+  goal_automation_id: null as number | null,
   goal_final_message: '',
   split_messages_enabled: false,
   split_typing_speed_ms_per_char: 35,
@@ -105,6 +106,26 @@ const fetchMembers = async () => {
     members.value = await api<any[]>('/api/org/members')
   } catch {}
   finally { membersLoading.value = false }
+}
+
+const pipedriveActive = ref(false)
+const dealFields = ref<{ key: string; name: string }[]>([])
+const goalAutomations = ref<any[]>([])
+let objetivoExtrasLoaded = false
+const fetchObjetivoExtras = async () => {
+  if (objetivoExtrasLoaded) return
+  objetivoExtrasLoaded = true
+  try {
+    const integ = await api<any>('/api/org/integrations/pipedrive')
+    pipedriveActive.value = !!integ?.is_active
+    if (pipedriveActive.value) {
+      dealFields.value = await api<{ key: string; name: string }[]>('/api/org/integrations/pipedrive/deal-fields')
+    }
+  } catch {}
+  try {
+    const autos = await api<any[]>('/api/automations/')
+    goalAutomations.value = autos.filter(a => a.trigger_type === 'agent.goal_completed')
+  } catch {}
 }
 
 const loading = ref(false)
@@ -181,6 +202,7 @@ watch(() => props.open, (val) => {
     form.goal_slots           = props.agent.goal_slots           ?? []
     form.goal_action          = props.agent.goal_action          ?? ''
     form.goal_assign_to_id    = props.agent.goal_assign_to_id    ?? null
+    form.goal_automation_id   = props.agent.goal_automation_id   ?? null
     form.goal_final_message   = props.agent.goal_final_message   ?? ''
     form.split_messages_enabled         = props.agent.split_messages_enabled         ?? false
     form.split_typing_speed_ms_per_char = props.agent.split_typing_speed_ms_per_char ?? 35
@@ -208,6 +230,7 @@ watch(() => props.open, (val) => {
     form.goal_slots           = []
     form.goal_action          = ''
     form.goal_assign_to_id    = null
+    form.goal_automation_id   = null
     form.goal_final_message   = ''
     form.split_messages_enabled         = false
     form.split_typing_speed_ms_per_char = 35
@@ -233,10 +256,11 @@ watch(tab, async (val) => {
   }
   if (val === 'objetivo') {
     await fetchMembers()
+    await fetchObjetivoExtras()
   }
 })
 
-const addSlot = () => form.goal_slots.push({ key: '', label: '', required: false })
+const addSlot = () => form.goal_slots.push({ key: '', label: '', required: false, pipedrive_field: '' })
 const removeSlot = (idx: number) => form.goal_slots.splice(idx, 1)
 
 // ---------------------------------------------------------------------------
@@ -259,6 +283,10 @@ const submit = async () => {
     }
     if (form.goal_action === 'assign_to_user' && !form.goal_assign_to_id) {
       error.value = 'Selecione o operador para atribuição.'
+      return
+    }
+    if (form.goal_action === 'trigger_automation' && !form.goal_automation_id) {
+      error.value = 'Selecione a automação a disparar.'
       return
     }
   }
@@ -1051,12 +1079,12 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                       <span class="text-[10px] font-mono text-accent bg-accent/10 px-1.5 py-0.5">PASSO 1</span>
                       <label class="field-label mb-0">O que a IA precisa fazer?</label>
                     </div>
-                    <div class="input-wrapper !py-0 !px-0">
+                    <div class="input-wrapper !rounded-none !py-0 !px-0">
                       <textarea
                         v-model="form.goal_description"
-                        rows="4"
+                        rows="6"
                         placeholder="Descreva em linguagem natural, como se fosse para um funcionário. Ex: Qualificar o lead perguntando o nome da empresa, o tamanho do time e o orçamento mensal. Quando tiver as três informações, considere o objetivo cumprido."
-                        class="input-field resize-none !py-2.5 !px-3"
+                        class="input-field resize-y !py-2.5 !px-3"
                       />
                     </div>
                     <p class="text-[10px] font-mono text-neutral-700 mt-1">
@@ -1083,18 +1111,33 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                       Nenhum campo definido — IA decide sozinha quando cumpriu o objetivo
                     </div>
                     <div v-else class="space-y-1.5">
-                      <div class="grid grid-cols-[1fr_1fr_auto_auto] gap-2 text-[9px] font-mono text-neutral-600 uppercase tracking-widest px-1">
+                      <div
+                        class="grid gap-2 text-[9px] font-mono text-neutral-600 uppercase tracking-widest px-1"
+                        :class="pipedriveActive ? 'grid-cols-[1fr_1fr_1fr_auto_auto]' : 'grid-cols-[1fr_1fr_auto_auto]'"
+                      >
                         <span>Chave técnica</span>
                         <span>Rótulo (humano)</span>
+                        <span v-if="pipedriveActive">Campo no Pipedrive</span>
                         <span>Obrig.</span>
                         <span></span>
                       </div>
-                      <div v-for="(s, idx) in form.goal_slots" :key="idx" class="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                      <div
+                        v-for="(s, idx) in form.goal_slots"
+                        :key="idx"
+                        class="grid gap-2 items-center"
+                        :class="pipedriveActive ? 'grid-cols-[1fr_1fr_1fr_auto_auto]' : 'grid-cols-[1fr_1fr_auto_auto]'"
+                      >
                         <div class="input-wrapper !rounded-none !py-2 !px-3">
                           <input v-model="s.key" type="text" placeholder="ex: email" class="input-field font-mono text-xs" />
                         </div>
                         <div class="input-wrapper !rounded-none !py-2 !px-3">
                           <input v-model="s.label" type="text" placeholder="E-mail do cliente" class="input-field text-xs" />
+                        </div>
+                        <div v-if="pipedriveActive" class="input-wrapper !rounded-none !py-2 !px-3">
+                          <select v-model="s.pipedrive_field" class="input-field text-xs bg-transparent appearance-none cursor-pointer">
+                            <option value="" class="bg-surface">— não enviar —</option>
+                            <option v-for="f in dealFields" :key="f.key" :value="f.key" class="bg-surface">{{ f.name }}</option>
+                          </select>
                         </div>
                         <input type="checkbox" v-model="s.required" class="accent-[rgb(var(--accent-rgb))] w-4 h-4 justify-self-center" :title="s.required ? 'Obrigatório' : 'Opcional'" />
                         <button type="button" @click="removeSlot(idx)" class="text-neutral-600 hover:text-red-400 transition-colors px-1" title="Remover campo">
@@ -1102,6 +1145,10 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                         </button>
                       </div>
                     </div>
+                    <p v-if="pipedriveActive" class="text-[10px] font-mono text-neutral-600">
+                      <Icon icon="solar:link-bold-duotone" class="inline text-xs text-accent" />
+                      Campos com destino no Pipedrive são gravados no <strong class="text-neutral-400">Deal</strong> da conversa quando o objetivo é cumprido.
+                    </p>
                   </div>
 
                   <!-- PASSO 3: Ação -->
@@ -1111,7 +1158,7 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                       <label class="field-label mb-0">O que fazer quando a IA cumprir o objetivo?</label>
                     </div>
                     <p class="text-[10px] font-mono text-neutral-600 mb-1">
-                      Escolha apenas uma ação. O trigger <code class="text-neutral-400">agent.goal_completed</code> dispara em qualquer caso.
+                      Escolha apenas uma ação, executada quando a IA concluir o objetivo.
                     </p>
                     <div class="space-y-2">
                       <label
@@ -1119,7 +1166,7 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                           { value: 'deactivate_ai',      title: 'Pausar a IA (recomendado)', icon: 'solar:pause-circle-bold-duotone', desc: 'A IA para de responder, conversa fica aberta esperando alguém da equipe assumir manualmente.' },
                           { value: 'assign_to_user',     title: 'Encaminhar para um atendente', icon: 'solar:user-rounded-bold-duotone', desc: 'A IA para e a conversa é atribuída automaticamente a um atendente específico (você escolhe quem abaixo).' },
                           { value: 'close_conversation', title: 'Encerrar a conversa', icon: 'solar:close-circle-bold-duotone', desc: 'Marca a conversa como concluída/fechada. Use quando o objetivo for o atendimento completo sem precisar de humano.' },
-                          { value: 'trigger_automation', title: 'Só disparar automação', icon: 'solar:settings-bold-duotone', desc: 'Não muda nada na conversa — só emite o evento para você montar um fluxo customizado na aba Automações (ex: enviar para webhook externo).' },
+                          { value: 'trigger_automation', title: 'Iniciar automação', icon: 'solar:settings-bold-duotone', desc: 'Dispara uma automação específica, escolhida abaixo (ex: enviar para webhook externo, enviar mensagem, pausar a IA).' },
                         ]"
                         :key="opt.value"
                         class="flex items-start gap-3 px-4 py-3 bg-canvas border cursor-pointer transition-colors"
@@ -1158,6 +1205,27 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                     </div>
                   </Transition>
 
+                  <!-- Select de automação (condicional) -->
+                  <Transition name="fade">
+                    <div v-if="form.goal_action === 'trigger_automation'" class="ml-2 pl-3 border-l-2 border-accent/30">
+                      <label class="field-label">Qual automação disparar?</label>
+                      <div class="bg-surface border border-white/10 rounded-full py-2.5 pl-5 pr-3 hover:border-accent/50 transition-colors">
+                        <select v-model="form.goal_automation_id" class="bg-transparent border-none outline-none text-white text-sm w-full font-mono appearance-none cursor-pointer">
+                          <option :value="null" class="bg-surface">— escolha uma automação —</option>
+                          <option v-for="a in goalAutomations" :key="a.id" :value="a.id" class="bg-surface">
+                            {{ a.name }}
+                          </option>
+                        </select>
+                      </div>
+                      <p v-if="!goalAutomations.length" class="text-[10px] font-mono text-yellow-400/80 mt-1">
+                        Nenhuma automação com gatilho "Objetivo do agente cumprido" — crie uma na aba Automações primeiro.
+                      </p>
+                      <p v-else class="text-[10px] font-mono text-neutral-700 mt-1">
+                        Só a automação escolhida roda — sem conflito com outras.
+                      </p>
+                    </div>
+                  </Transition>
+
                   <!-- PASSO 4: Mensagem final -->
                   <div class="border-t border-white/5 pt-4">
                     <div class="flex items-center gap-2 mb-1.5">
@@ -1187,7 +1255,7 @@ const removeHeader = (idx: number) => httpToolForm.headers.splice(idx, 1)
                       <template v-if="form.goal_action === 'deactivate_ai'"> Depois a IA pausa.</template>
                       <template v-else-if="form.goal_action === 'assign_to_user'"> Depois a conversa é encaminhada ao atendente escolhido.</template>
                       <template v-else-if="form.goal_action === 'close_conversation'"> Depois a conversa é encerrada.</template>
-                      <template v-else-if="form.goal_action === 'trigger_automation'"> Só dispara a automação configurada em Automações.</template>
+                      <template v-else-if="form.goal_action === 'trigger_automation'"> Depois dispara a automação <strong>{{ goalAutomations.find(a => a.id === form.goal_automation_id)?.name || '— nenhuma escolhida —' }}</strong>.</template>
                       <template v-else><span class="text-red-300"> Escolha uma ação no PASSO 3.</span></template>
                     </p>
                   </div>

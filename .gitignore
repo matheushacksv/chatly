@@ -24,3 +24,4 @@ chatly-dump.sql
 *.env.bak
 
 testes.rest
+test.rest

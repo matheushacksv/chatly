@@ -4,7 +4,7 @@ from ninja import Schema
 
 
 class AutomationStepIn(Schema):
-    order: int
+    order: int = 0
     action_type: str
     config: dict = {}
     then_steps: list['AutomationStepIn'] = []

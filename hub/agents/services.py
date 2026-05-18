@@ -40,14 +40,32 @@ def handle_goal_completion(agent, conversation, contact, reason, collected):
                 setattr(conversation, k, v)
             conversation.save(update_fields=list(updates.keys()))
 
+        mapped = {s['pipedrive_field']: collected.get(s['key'])
+                  for s in (agent.goal_slots or [])
+                  if s.get('pipedrive_field') and collected.get(s['key']) is not None}
+        if mapped and conversation.pipedrive_deal_id:
+            from integrations.models import PipedriveIntegration
+            from integrations.pipedrive_services import update_deal_fields
+            integ = PipedriveIntegration.objects.filter(
+                organization_id=agent.organization_id, is_active=True
+            ).first()
+            if integ:
+                update_deal_fields(integ.api_key, conversation.pipedrive_deal_id, mapped)
+
+        from automations.models import Automation, AutomationRun
         from automations.events import trigger_event
-        trigger_event(
-            'agent.goal_completed',
-            organization_id=agent.organization_id,
-            conversation_id=conversation.id,
-            contact_id=contact.id,
-            agent_id=agent.id,
-            collected=collected
-        )
+        from automations.tasks import run_automation
+        ctx = {'conversation_id': conversation.id, 'contact_id': contact.id, 'agent_id': agent.id, 'collected': collected}
+        if action == 'trigger_automation' and agent.goal_automation_id:
+            auto = Automation.objects.filter(id=agent.goal_automation_id, is_active=True).first()
+            if auto:
+                run = AutomationRun.objects.create(automation=auto, context=ctx)
+                run_automation.delay(run.id)
+        else:    
+            trigger_event(
+                'agent.goal_completed',
+                organization_id=agent.organization_id,
+                **ctx
+            )
     except Exception:
         logger.exception('[handle_goal_completion] falha aplicando ação')

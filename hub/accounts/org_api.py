@@ -11,7 +11,7 @@ from accounts.utils import is_owner_or_admin
 from integrations.schemas import PipedriveIntegrationIn, PipedriveIntegrationOut, PipedriveConfigIn, PipedrivePipelineOut
 from integrations.models import PipedriveIntegration
 from accounts.utils import has_permission
-from integrations.pipedrive_services import validate_integration, pipeline_with_stages, search_persons
+from integrations.pipedrive_services import validate_integration, pipeline_with_stages, search_persons, deal_fields, update_deal_fields
 
 router = Router(tags=['Organization'])
 
@@ -281,6 +281,13 @@ def search_pipedrive_persons(request, q: str):
     if integration is None:
         return 400, GenericErrorSchema(detail='Integração Pipedrive não configurada')
     return 200, search_persons(api_token=integration.api_key, term=q.strip())
+
+@router.get('/integrations/pipedrive/deal-fields', response={200: list, 400: GenericErrorSchema})
+def get_pipedrive_deal_fields(request):
+    integration = PipedriveIntegration.objects.filter(organization=request.auth.organization, is_active=True).first()
+    if not integration:
+        return 400, GenericErrorSchema(detail='Integração do Pipedrive não configurada')
+    return 200, deal_fields(integration.api_key)
 
 #* ----- Business Hours endpoints -----
 
