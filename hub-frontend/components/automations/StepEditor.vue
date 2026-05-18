@@ -31,7 +31,10 @@ const props = defineProps<{
   labels: any[]
   members: any[]
   instances: any[]
+  depth?: number
 }>()
+
+const depth = computed(() => props.depth ?? 0)
 
 const emit = defineEmits<{
   remove: []
@@ -46,8 +49,17 @@ const api = useApi()
 const pipelines = useState<any[]>('pipedrive-pipelines', () => [])
 const pipelinesFetched = useState<boolean>('pipedrive-pipelines-fetched', () => false)
 
+const ensureBranches = () => {
+  if (!props.step.then_steps) props.step.then_steps = []
+  if (!props.step.else_steps) props.step.else_steps = []
+  if (!props.step.config) props.step.config = {}
+  if (!props.step.config.logic) props.step.config.logic = { combinator: 'AND', rules: [] }
+}
+
+// init SÍNCRONO — garante config.logic antes do 1º render do ConditionBuilder
+if (isCondition.value) ensureBranches()
+
 onMounted(async () => {
-  if (isCondition.value) ensureBranches()
   if (pipelinesFetched.value) return
   const needs = props.actions.some(a => a.fields.some(f => f.type === 'pipedrive_stage_select'))
   if (!needs) return
@@ -56,12 +68,6 @@ onMounted(async () => {
     pipelines.value = await api<any[]>('/api/org/integrations/pipedrive/pipelines')
   } catch {}
 })
-
-const ensureBranches = () => {
-  if (!props.step.then_steps) props.step.then_steps = []
-  if (!props.step.else_steps) props.step.else_steps = []
-  if (!props.step.config.logic) props.step.config.logic = { combinator: 'AND', rules: [] }
-}
 
 const newStep = (): Step => ({
   action_type: props.actions.find(a => a.type !== 'condition')?.type ?? 'send_message',
@@ -114,19 +120,19 @@ const parseJson = (raw: string, key: string) => {
 </script>
 
 <template>
-  <div class="bg-surface border border-white/5">
-    <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
-      <div class="flex items-center gap-2">
-        <span class="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">#{{ index + 1 }}</span>
+  <div class="bg-surface border" :class="isCondition ? 'border-amber-400/30' : 'border-white/5'">
+    <div class="flex items-center justify-between gap-2 px-3 py-2.5 border-b" :class="isCondition ? 'border-amber-400/15' : 'border-white/5'">
+      <div class="flex items-center gap-2 min-w-0 flex-1">
+        <span class="text-[10px] font-mono text-neutral-600 uppercase tracking-widest shrink-0">#{{ index + 1 }}</span>
         <select
           v-model="props.step.action_type"
           @change="onActionChange"
-          class="bg-canvas border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
+          class="min-w-0 flex-1 bg-canvas border border-white/10 text-xs text-white font-mono px-2 py-1.5 outline-none focus:border-white/20"
         >
           <option v-for="a in actions" :key="a.type" :value="a.type">{{ a.label }}</option>
         </select>
       </div>
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-0.5 shrink-0">
         <button @click="emit('moveUp')" class="p-1 text-neutral-600 hover:text-neutral-300 transition-colors" title="Subir">
           <Icon icon="solar:alt-arrow-up-bold-duotone" class="text-sm" />
         </button>
@@ -139,21 +145,37 @@ const parseJson = (raw: string, key: string) => {
       </div>
     </div>
 
-    <!-- CONDIÇÃO: builder + ramos Então/Senão -->
-    <div v-if="isCondition" class="px-4 py-3 space-y-4">
-      <AutomationsConditionBuilder :logic="props.step.config.logic" />
+    <!-- CONDIÇÃO: bloco visual SE / ENTÃO / SENÃO -->
+    <div v-if="isCondition" class="px-3 py-3 space-y-2">
+      <!-- SE -->
+      <div class="border border-amber-400/25 bg-amber-400/[0.03]">
+        <div class="px-3 py-1.5 border-b border-amber-400/15">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-amber-400/90">◆ Se</span>
+        </div>
+        <div class="px-3 py-2.5">
+          <AutomationsConditionBuilder
+            v-if="props.step.config && props.step.config.logic"
+            :logic="props.step.config.logic"
+            :instances="instances"
+            :members="members"
+          />
+        </div>
+      </div>
 
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] font-mono uppercase tracking-widest text-accent">Então</span>
+      <!-- ENTÃO | SENÃO lado a lado (só no nível raiz; aninhados empilham) -->
+      <div class="grid grid-cols-1 gap-2 items-start" :class="depth === 0 ? 'md:grid-cols-2' : ''">
+      <!-- ENTÃO -->
+      <div class="border border-accent/25 bg-accent/[0.03]">
+        <div class="flex items-center justify-between px-3 py-1.5 border-b border-accent/15">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-accent">▸ Então</span>
           <button
             @click="addChild('then')"
-            class="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-accent/80 px-2.5 py-1 border border-accent/30"
+            class="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-accent/80"
           >+ Ação</button>
         </div>
-        <div class="border-l-2 border-accent/30 pl-3 space-y-2">
+        <div class="px-3 py-2.5 space-y-2">
           <p v-if="!props.step.then_steps || props.step.then_steps.length === 0" class="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
-            Vazio
+            Vazio — sem ações neste ramo
           </p>
           <AutomationsStepEditor
             v-for="(child, ci) in props.step.then_steps"
@@ -165,6 +187,7 @@ const parseJson = (raw: string, key: string) => {
             :labels="labels"
             :members="members"
             :instances="instances"
+            :depth="depth + 1"
             @remove="removeChild(props.step.then_steps!, ci)"
             @move-up="moveChild(props.step.then_steps!, ci, -1)"
             @move-down="moveChild(props.step.then_steps!, ci, 1)"
@@ -172,17 +195,18 @@ const parseJson = (raw: string, key: string) => {
         </div>
       </div>
 
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Senão</span>
+      <!-- SENÃO -->
+      <div class="border border-white/12 bg-white/[0.02]">
+        <div class="flex items-center justify-between px-3 py-1.5 border-b border-white/8">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-neutral-400">▸ Senão</span>
           <button
             @click="addChild('else')"
-            class="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-200 px-2.5 py-1 border border-white/15"
+            class="text-[10px] font-mono uppercase tracking-widest text-neutral-400 hover:text-neutral-200"
           >+ Ação</button>
         </div>
-        <div class="border-l-2 border-white/15 pl-3 space-y-2">
+        <div class="px-3 py-2.5 space-y-2">
           <p v-if="!props.step.else_steps || props.step.else_steps.length === 0" class="text-[10px] font-mono text-neutral-700 uppercase tracking-widest">
-            Vazio
+            Vazio — sem ações neste ramo
           </p>
           <AutomationsStepEditor
             v-for="(child, ci) in props.step.else_steps"
@@ -194,11 +218,13 @@ const parseJson = (raw: string, key: string) => {
             :labels="labels"
             :members="members"
             :instances="instances"
+            :depth="depth + 1"
             @remove="removeChild(props.step.else_steps!, ci)"
             @move-up="moveChild(props.step.else_steps!, ci, -1)"
             @move-down="moveChild(props.step.else_steps!, ci, 1)"
           />
         </div>
+      </div>
       </div>
     </div>
 
