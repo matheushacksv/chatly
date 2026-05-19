@@ -23,6 +23,7 @@ ACTIONS_META = [
         'fields': [
             {'key': 'instance_id', 'label': 'Instância', 'type': 'instance_select', 'required': True},
             {'key': 'text', 'label': 'Texto', 'type': 'textarea', 'required': True},
+            {'key': 'variants', 'label': 'Variações (rodízio por %)', 'type': 'messages_variants'},
         ],
     },
     {
@@ -76,6 +77,13 @@ ACTIONS_META = [
         'label': 'Aguardar',
         'fields': [
             {'key': 'seconds', 'label': 'Segundos', 'type': 'number', 'required': True},
+        ],
+    },
+    {
+        'type': 'start_automation',
+        'label': 'Iniciar outra automação',
+        'fields': [
+            {'key': 'automation_id', 'label': 'Automação', 'type': 'automation_select', 'required': True},
         ],
     },
     {

@@ -57,6 +57,12 @@ def run_automation(self, run_id: int):
                 run_automation.apply_async(args=[run.id], countdown=seconds)
                 return
 
+            variants = (step.config or {}).get('variants') or []
+            if step.action_type == 'send_message' and variants:
+                from .variants import pick_variant_index
+                i = pick_variant_index(run.automation, step.order, variants)
+                step.config = {**step.config, 'text': variants[i].get('text', '')}
+
             context = dict(run.context or {})
             context['from_automation'] = True
             execute_action(step, context, organization_id)

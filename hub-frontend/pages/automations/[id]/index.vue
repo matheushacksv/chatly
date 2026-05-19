@@ -36,6 +36,7 @@ const templates = ref<any[]>([])
 const labels = ref<any[]>([])
 const members = ref<any[]>([])
 const instances = ref<any[]>([])
+const automationsList = ref<any[]>([])
 
 const loading = ref(true)
 const saving = ref(false)
@@ -44,7 +45,7 @@ const successMsg = ref('')
 
 const fetchAll = async () => {
   try {
-    const [auto, trig, acts, tpls, lbls, mbrs, insts] = await Promise.all([
+    const [auto, trig, acts, tpls, lbls, mbrs, insts, autos] = await Promise.all([
       api<Automation>(`/api/automations/${automationId}/`),
       api<TriggerMeta[]>('/api/automations/triggers/'),
       api<ActionMeta[]>('/api/automations/actions/'),
@@ -52,6 +53,7 @@ const fetchAll = async () => {
       api<any[]>('/api/labels/').catch(() => []),
       api<any[]>('/api/org/members').catch(() => []),
       api<any[]>('/api/integrations/whatsapp/').catch(() => []),
+      api<any[]>('/api/automations/').catch(() => []),
     ])
     Object.assign(form, auto)
     triggers.value = trig
@@ -60,6 +62,10 @@ const fetchAll = async () => {
     labels.value = lbls
     members.value = mbrs
     instances.value = insts
+    // ação "Iniciar outra automação" só mira automações com gatilho "Iniciada por automação"
+    automationsList.value = autos.filter(
+      (a: any) => a.id !== automationId && a.trigger_type === 'automation.chained',
+    )
   } catch (e: any) {
     error.value = e?.data?.detail || 'Erro ao carregar'
   } finally {
@@ -96,7 +102,25 @@ const serializeStep = (s: Step): any => ({
   else_steps: (s.else_steps || []).map(serializeStep),
 })
 
+// valida variações de mensagem antes de enviar (peso ≥ 1 e texto não-vazio)
+const validateSteps = (steps: Step[]): string => {
+  for (const s of steps) {
+    const vs = s.action_type === 'send_message' ? (s.config?.variants || []) : []
+    if (vs.length) {
+      if (vs.some((v: any) => !String(v.text || '').trim()))
+        return 'Há variação de mensagem com texto vazio.'
+      if (vs.some((v: any) => !(Number(v.weight) >= 1)))
+        return 'Cada variação precisa de um peso (%) ≥ 1.'
+    }
+    const bad = validateSteps(s.then_steps || []) || validateSteps(s.else_steps || [])
+    if (bad) return bad
+  }
+  return ''
+}
+
 const save = async () => {
+  const invalid = validateSteps(form.steps)
+  if (invalid) { error.value = invalid; return }
   saving.value = true
   error.value = ''
   successMsg.value = ''
@@ -199,6 +223,7 @@ onMounted(fetchAll)
             :labels="labels"
             :members="members"
             :instances="instances"
+            :automations="automationsList"
             @remove="removeStep(idx)"
             @move-up="move(idx, -1)"
             @move-down="move(idx, 1)"
