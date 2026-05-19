@@ -31,6 +31,7 @@ const props = defineProps<{
   labels: any[]
   members: any[]
   instances: any[]
+  automations: any[]
   depth?: number
 }>()
 
@@ -76,10 +77,31 @@ const newStep = (): Step => ({
   else_steps: [],
 })
 
+// garante que campos de variações tenham um array antes do render
+const ensureVariants = () => {
+  for (const f of currentAction.value?.fields || []) {
+    if (f.type === 'messages_variants' && !Array.isArray(props.step.config[f.key])) {
+      props.step.config[f.key] = []
+    }
+  }
+}
+ensureVariants()
+
+const addVariant = (key: string) => {
+  if (!Array.isArray(props.step.config[key])) props.step.config[key] = []
+  props.step.config[key].push({ text: '', weight: 0 })
+}
+const removeVariant = (key: string, i: number) => {
+  props.step.config[key].splice(i, 1)
+}
+const variantsSum = (key: string): number =>
+  (props.step.config[key] || []).reduce((s: number, v: any) => s + (Number(v.weight) || 0), 0)
+
 const onActionChange = () => {
   // resetar config ao mudar tipo
   props.step.config = {}
   if (isCondition.value) ensureBranches()
+  ensureVariants()
 }
 
 const addChild = (branch: 'then' | 'else') => {
@@ -187,6 +209,7 @@ const parseJson = (raw: string, key: string) => {
             :labels="labels"
             :members="members"
             :instances="instances"
+            :automations="automations"
             :depth="depth + 1"
             @remove="removeChild(props.step.then_steps!, ci)"
             @move-up="moveChild(props.step.then_steps!, ci, -1)"
@@ -218,6 +241,7 @@ const parseJson = (raw: string, key: string) => {
             :labels="labels"
             :members="members"
             :instances="instances"
+            :automations="automations"
             :depth="depth + 1"
             @remove="removeChild(props.step.else_steps!, ci)"
             @move-up="moveChild(props.step.else_steps!, ci, -1)"
@@ -338,6 +362,71 @@ const parseJson = (raw: string, key: string) => {
             <option v-for="s in p.stages" :key="s.id" :value="s.id">{{ s.name }}</option>
           </optgroup>
         </select>
+
+        <!-- automation select -->
+        <template v-else-if="field.type === 'automation_select'">
+          <select
+            v-model.number="props.step.config[field.key]"
+            class="w-full bg-canvas border border-white/10 text-sm text-white font-mono px-3 py-2 outline-none focus:border-white/20"
+          >
+            <option :value="undefined">—</option>
+            <option v-for="a in automations" :key="a.id" :value="a.id">{{ a.name }}</option>
+          </select>
+          <p v-if="!automations.length" class="text-[10px] font-mono text-amber-400 mt-1">
+            Nenhuma automação com gatilho "Iniciada por automação". Crie uma com esse gatilho.
+          </p>
+        </template>
+
+        <!-- variações de mensagem (rodízio por %) -->
+        <div v-else-if="field.type === 'messages_variants'" class="space-y-2">
+          <div
+            v-for="(v, vi) in props.step.config[field.key]"
+            :key="vi"
+            class="border border-white/8 bg-canvas p-2 space-y-1.5"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">Variação {{ vi + 1 }}</span>
+              <div class="flex items-center gap-1 ml-auto">
+                <input
+                  v-model.number="v.weight"
+                  type="number"
+                  min="1"
+                  max="100"
+                  class="w-16 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1 outline-none focus:border-white/20"
+                />
+                <span class="text-[10px] font-mono text-neutral-500">%</span>
+                <button
+                  @click="removeVariant(field.key, vi)"
+                  class="p-1 text-neutral-600 hover:text-red-400 transition-colors"
+                  title="Remover variação"
+                >
+                  <Icon icon="solar:trash-bin-trash-bold-duotone" class="text-sm" />
+                </button>
+              </div>
+            </div>
+            <textarea
+              v-model="v.text"
+              rows="2"
+              class="w-full bg-surface border border-white/10 text-sm text-white font-mono px-3 py-2 outline-none focus:border-white/20 resize-y"
+              placeholder="Texto da variação — use {{contact.name}}, {{conversation.id}}"
+            ></textarea>
+          </div>
+          <button
+            @click="addVariant(field.key)"
+            class="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-accent/80"
+          >+ Variação</button>
+          <p
+            class="text-[10px] font-mono"
+            :class="(props.step.config[field.key] || []).length === 0 || variantsSum(field.key) === 100 ? 'text-neutral-600' : 'text-amber-400'"
+          >
+            <template v-if="(props.step.config[field.key] || []).length">
+              Soma dos pesos: {{ variantsSum(field.key) }}% · rodízio proporcional a cada disparo. O campo "Texto" acima é ignorado quando há variações.
+            </template>
+            <template v-else>
+              Sem variações — usa o campo "Texto" acima. Adicione 2+ para fazer rodízio por %.
+            </template>
+          </p>
+        </div>
 
         <!-- json -->
         <textarea

@@ -1,12 +1,15 @@
 import logging
 import httpx
 from django.utils import timezone
+from automations.models import Automation, AutomationRun
+from automations.tasks import run_automation
 
 from .templating import render_template, build_context
 
 logger = logging.getLogger(__name__)
 
 ACTION_HANDLERS = {}
+MAX_AUTO_DEPTH = 5
 
 
 def register(name):
@@ -61,6 +64,25 @@ def _resolve_instance_id(config: dict, conv, organization_id: int):
         return conv.instance_id
     raise ValueError('instance_id é obrigatório (configure na ação ou na conversa)')
 
+@register('start_automation')
+def _start_automation(config, run_context, organization_id):
+    target_id = config.get('automation_id')
+    if not target_id:
+        raise ValueError('start_automation: automation_id é obrigatório')
+    
+    depth = int(run_context.get('_auto_depth', 0))
+    if depth >= MAX_AUTO_DEPTH:
+        raise ValueError('start_automation: profundidade máxima de encadeamento atingida')
+    target = Automation.objects.filter(
+        id=target_id, organization_id=organization_id, is_active=True, trigger_type='automation.chained',
+    ).first()
+    if target is None:
+        raise RuntimeError(f'start_automation: automação {target_id} não encontrada/inativa ou sem gatilho "Iniciada por automação"')
+    ctx = {k: v for k, v in run_context.items()
+           if k in ('conversation_id', 'contact_id', 'agent_id', 'collected')}
+    ctx['_auto_depth'] = depth + 1
+    new_run = AutomationRun.objects.create(automation=target, context=ctx)
+    run_automation.delay(new_run.id)
 
 @register('send_message')
 def _send_message(config: dict, run_context: dict, organization_id: int):

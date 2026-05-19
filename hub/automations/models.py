@@ -8,6 +8,7 @@ TRIGGER_CHOICES = [
     ('conversation.closed', 'Conversa fechada'),
     ('message.received', 'Mensagem recebida'),
     ('agent.goal_completed', 'Objetivo do agente cumprido'),
+    ('automation.chained', 'Iniciada por automação'),
 ]
 
 ACTION_CHOICES = [
@@ -18,6 +19,7 @@ ACTION_CHOICES = [
     ('add_label', 'Adicionar etiqueta'),
     ('condition', 'Condição (Se/Senão)'),
     ('remove_label', 'Remover etiqueta'),
+    ('start_automation', 'Iniciar outra automação'),
     ('wait_delay', 'Aguardar'),
     ('assign_to_user', 'Atribuir a usuário'),
     ('close_conversation', 'Fechar conversa'),
@@ -30,6 +32,7 @@ class Automation(models.Model):
     name = models.CharField(max_length=120)
     trigger_type = models.CharField(max_length=64, choices=TRIGGER_CHOICES, db_index=True)
     trigger_filters = models.JSONField(default=dict, blank=True)
+    variant_state = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
