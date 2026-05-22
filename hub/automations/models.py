@@ -16,6 +16,7 @@ ACTION_CHOICES = [
     ('send_template', 'Enviar template'),
     ('http_request', 'Requisição HTTP'),
     ('toggle_ai', 'Ativar/desativar IA'),
+    ('switch_agent', 'Trocar agente de IA'),
     ('add_label', 'Adicionar etiqueta'),
     ('condition', 'Condição (Se/Senão)'),
     ('remove_label', 'Remover etiqueta'),

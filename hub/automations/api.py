@@ -5,7 +5,7 @@ from .utils.helpers import _validate_steps, _save_steps
 
 from core.utils.errors import GenericErrorSchema
 
-from .models import Automation, AutomationStep, AutomationRun, TRIGGER_CHOICES, ACTION_CHOICES
+from .models import Automation, TRIGGER_CHOICES, ACTION_CHOICES
 from .schemas import (
     AutomationIn, AutomationOut, AutomationListOut, AutomationRunOut,
     ToggleIn, TriggerMeta, ActionMeta,
@@ -14,7 +14,7 @@ from .schemas import (
 router = Router(tags=['Automations'])
 
 
-TRIGGERS_META = [{'type': t, 'label': l} for t, l in TRIGGER_CHOICES]
+TRIGGERS_META = [{'type': t, 'label': label} for t, label in TRIGGER_CHOICES]
 
 ACTIONS_META = [
     {
@@ -51,7 +51,11 @@ ACTIONS_META = [
         'type': 'toggle_ai',
         'label': 'Ativar/desativar IA',
         'fields': [
-            {'key': 'value', 'label': 'Ativar IA', 'type': 'boolean', 'required': True},
+            {'key': 'ai_state', 'label': 'Estado da IA', 'type': 'select', 'required': True,
+             'options': [
+                 {'value': 'on', 'label': 'Ligar IA (responder automaticamente)'},
+                 {'value': 'off', 'label': 'Desligar IA (atendimento manual)'},
+             ]},
         ],
     },
     {
@@ -92,6 +96,18 @@ ACTIONS_META = [
         'fields': [
             {'key': 'logic', 'label': 'Regras', 'type': 'condition_builder', 'required': True}
         ],
+    },
+    {
+        'type': 'switch_agent', 'label': 'Trocar agente de IA',
+        'fields': [
+            {'key': 'agent_id', 'label': 'Agente', 'type': 'agent_select', 'required': True},
+            {'key': 'ai_state', 'label': 'Estado da IA após a troca', 'type': 'select', 'required': True,
+             'options': [
+                 {'value': 'on', 'label': 'Ligar IA (responder automaticamente)'},
+                 {'value': 'off', 'label': 'Desligar IA (atendimento manual)'},
+                 {'value': 'keep', 'label': 'Manter como está'},
+             ]},
+        ]
     },
     {
         'type': 'assign_to_user',
