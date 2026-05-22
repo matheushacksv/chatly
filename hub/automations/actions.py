@@ -206,9 +206,36 @@ def _toggle_ai(config: dict, run_context: dict, organization_id: int):
     conv = _get_conversation(run_context, organization_id)
     if conv is None:
         raise RuntimeError('toggle_ai: conversation não encontrada no contexto')
-    value = bool(config.get('value', True))
+    # ai_state: 'on' liga, 'off' desliga (idempotente). Compat: value bool antigo.
+    ai_state = config.get('ai_state')
+    if ai_state is None:
+        ai_state = 'on' if bool(config.get('value', True)) else 'off'
+    value = (ai_state == 'on')
     Conversation.objects.filter(id=conv.id).update(ai_active=value)
 
+@register('switch_agent')
+def switch_agent(config: dict, run_context: dict, organization_id: int):
+    from conversations.models import Conversation
+    from agents.models import AIAgent
+    conv = _get_conversation(run_context, organization_id)
+    if conv is None:
+        raise RuntimeError('switch_agent: conversation não encontrada no contexto')
+    agent_id = config.get('agent_id')
+    if not agent_id:
+        raise ValueError('switch_agent: agent_id é obrigatório')
+    if not AIAgent.objects.filter(id=agent_id, organization_id=organization_id).exists():
+        raise RuntimeError(f'switch_agent: agent {agent_id} não encontrado na organização')
+    fields = {'agent_id': agent_id}
+    # ai_state: 'on' liga IA, 'off' desliga, 'keep' não altera.
+    # Compat com config antiga (activate bool): True→on, False→keep.
+    ai_state = config.get('ai_state')
+    if ai_state is None:
+        ai_state = 'on' if config.get('activate', True) else 'keep'
+    if ai_state == 'on':
+        fields['ai_active'] = True
+    elif ai_state == 'off':
+        fields['ai_active'] = False
+    Conversation.objects.filter(id=conv.id).update(**fields)
 
 @register('add_label')
 def _add_label(config: dict, run_context: dict, organization_id: int):

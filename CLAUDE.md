@@ -65,6 +65,7 @@ Frontend (useApi.ts + Pinia) → /api/* (Django Ninja) → PostgreSQL
 | `/api/conversations/` | conversations — mensagens, anexos |
 | `/api/contacts/` | contacts — CRUD, anotações, importação CSV, etiquetas |
 | `/api/templates/` | templates de mensagem |
+| `/api/automations/` | automations — CRUD, triggers/actions meta, runs |
 | `/api/integrations/whatsapp/` | instâncias WhatsApp |
 | `/api/webhooks/whatsapp/` | webhook incoming (sem auth) |
 | `/api/labels/` | labels — CRUD de etiquetas da org |
@@ -91,6 +92,11 @@ Ver `conversations/tasks.py` e `agents/tasks.py`.
 - **Django Ninja — ordenação de rotas:** rotas literais (ex: `/import`, `/labels`) DEVEM ser definidas ANTES das rotas parametrizadas (`/{id}`) no mesmo router; caso contrário o parâmetro captura o literal e retorna 405.
 - **Django Ninja — M2M fields:** campos ManyToMany em schemas precisam de `resolve_*` estático (`@staticmethod def resolve_labels(obj): return obj.labels.all()`); sem ele o manager é serializado como lista vazia silenciosamente.
 - **Importação CSV:** endpoint `POST /api/contacts/import` aceita multipart com campo `file`; colunas `name` e `phone` obrigatórias, `email` opcional, demais colunas viram `custom_fields`.
+- **Automations — ações:** registry `ACTION_HANDLERS` + `@register('nome')` em `automations/actions.py`; `execute_action(step, run_context, organization_id)` despacha por `step.action_type`. Metadados de UI em `ACTIONS_META`/`TRIGGERS_META` (`api.py`).
+- **Automations — PATCH recria steps:** `automation.steps.all().delete()` + `_save_steps` (DFS, reatribui `order`). Estado que precisa sobreviver à edição NÃO pode viver no `AutomationStep` — vai no model `Automation`.
+- **Automations — variações de mensagem:** `send_message` aceita `config.variants = [{text, weight}]`; rodízio determinístico por peso (gcd-reduzido) via `automations/variants.py`. Contador persistido em `Automation.variant_state` (JSONField keyed por `step.order`), sobrevive ao PATCH. `variants` vazio → usa `config.text`.
+- **Automations — encadeamento:** ação `start_automation` dispara outra automação; só mira alvos com `trigger_type='automation.chained'` (gatilho "Iniciada por automação", nunca disparado por evento). Guarda anti-loop via `_auto_depth` no contexto (cap `MAX_AUTO_DEPTH=5`).
+- **Agente por conversa (override):** `Conversation.agent` é FK independente do `instance.agent` (oficial). Webhook só usa `instance.agent` quando `conversation.agent` é null (`integrations/webhook.py`); `process_message` roda `conversation.agent`. Trocar o agente de uma conversa NÃO afeta as demais. Override é permanente até nova troca. Mecanismos: ação de automação `switch_agent` (`config.agent_id` + `config.ai_state` ∈ `on|off|keep` controla `ai_active` de forma explícita; compat: `activate` bool antigo → `on`/`keep`) e PATCH manual `PATCH /api/conversations/{id}` com `agent_id` (valor `0` limpa o override → volta ao oficial). Frontend: campo `agent_select` no StepEditor e dropdown no `Chat.vue` ("Agente oficial" = limpa override).
 
 ## Apps Django
 
@@ -102,6 +108,7 @@ Ver `conversations/tasks.py` e `agents/tasks.py`.
 | `conversations` | Conversation, Message, MessageAttachment, Sticker |
 | `labels` | Label — etiquetas aplicáveis a Contact e Conversation via M2M |
 | `templates` | MessageTemplate |
+| `automations` | Automation, AutomationStep (árvore if/else), AutomationRun — motor de gatilho→ações |
 | `integrations` | WhatsAppInstance + webhook EvoGO |
 | `core` | settings, api.py (NinjaAPI), utils (phone, errors) |
 

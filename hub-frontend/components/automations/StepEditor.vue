@@ -31,6 +31,7 @@ const props = defineProps<{
   labels: any[]
   members: any[]
   instances: any[]
+  agents: any[]
   automations: any[]
   depth?: number
 }>()
@@ -209,6 +210,7 @@ const parseJson = (raw: string, key: string) => {
             :labels="labels"
             :members="members"
             :instances="instances"
+            :agents="agents"
             :automations="automations"
             :depth="depth + 1"
             @remove="removeChild(props.step.then_steps!, ci)"
@@ -241,6 +243,7 @@ const parseJson = (raw: string, key: string) => {
             :labels="labels"
             :members="members"
             :instances="instances"
+            :agents="agents"
             :automations="automations"
             :depth="depth + 1"
             @remove="removeChild(props.step.else_steps!, ci)"
@@ -376,6 +379,16 @@ const parseJson = (raw: string, key: string) => {
             Nenhuma automação com gatilho "Iniciada por automação". Crie uma com esse gatilho.
           </p>
         </template>
+
+        <!-- agent select -->
+        <select
+          v-else-if="field.type === 'agent_select'"
+          v-model.number="props.step.config[field.key]"
+          class="w-full bg-canvas border border-white/10 text-sm text-white font-mono px-3 py-2 outline-none focus:border-white/20"
+        >
+          <option :value="undefined">—</option>
+          <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+        </select>
 
         <!-- variações de mensagem (rodízio por %) -->
         <div v-else-if="field.type === 'messages_variants'" class="space-y-2">

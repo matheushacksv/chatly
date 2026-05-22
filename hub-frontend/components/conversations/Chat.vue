@@ -22,6 +22,7 @@ watch(() => props.conversation, (val) => { conv.value = { ...val } }, { deep: tr
 
 const selectedInstanceId = ref<number | null>(conv.value.instance_id || null)
 const instances = ref<any[]>([])
+const agents = ref<any[]>([])
 const showInstanceSelector = ref(false)
 const selectedInstance = computed(() => instances.value.find((i: any) => i.id === selectedInstanceId.value) || null)
 const addInstanceId = (url: string) => {
@@ -183,6 +184,7 @@ onMounted(async () => {
   await fetchMessages()
   await fetchTemplates()
   try { instances.value = await api<any[]>('/api/integrations/whatsapp/') } catch {}
+  try { agents.value = await api<any[]>('/api/agents/') } catch {}
   loading.value = false
   scrollToBottom('instant')
   connectWs()
@@ -556,6 +558,19 @@ const toggleAI = async () => {
   } catch {}
 }
 
+const switchAgent = async (e: Event) => {
+  const agentId = Number((e.target as HTMLSelectElement).value)
+  try {
+    const updated = await api<any>(`/api/conversations/${conv.value.id}`, {
+      method: 'PATCH',
+      body: { agent_id: agentId },
+    })
+    conv.value.agent_id = updated.agent_id
+    conv.value.agent_name = updated.agent_name
+    emit('updated', { ...conv.value })
+  } catch {}
+}
+
 const toggleStatus = async () => {
   const newStatus = conv.value.status === 'open' ? 'closed' : 'open'
   try {
@@ -702,6 +717,17 @@ const roleLabel = (role: string, msg?: any) => {
           <Icon icon="solar:cpu-bolt-bold-duotone" class="text-sm" />
           <span class="hidden sm:inline">IA {{ conv.ai_active ? 'on' : 'off' }}</span>
         </button>
+
+        <!-- Trocar agente da conversa -->
+        <select
+          :value="conv.agent_id || 0"
+          @change="switchAgent"
+          class="px-2 py-1.5 text-[10px] font-mono uppercase tracking-widest bg-canvas border border-white/10 text-neutral-300 outline-none focus:border-white/20 max-w-[140px]"
+          title="Agente desta conversa"
+        >
+          <option :value="0">Agente oficial</option>
+          <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+        </select>
 
         <!-- Fechar/Reabrir -->
         <button

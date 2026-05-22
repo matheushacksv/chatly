@@ -250,6 +250,15 @@ def update_conversation(request, conversation_id: int, data: UpdateConversationI
             if PipedriveIntegration.objects.filter(organization=request.auth.organization, is_active=True).exists():
                 close_deal_from_conversation.delay(conversation.id)
         conversation.status = data.status
+    if data.agent_id is not None:
+        if data.agent_id == 0:
+            conversation.agent = None
+        else:
+            from agents.models import AIAgent
+            agent = AIAgent.objects.filter(id=data.agent_id, organization=request.auth.organization).first()
+            if agent is None:
+                return 400, ErrorWithCodeSchema(detail='Agente inválido', code='invalid_agent')
+            conversation.agent = agent
     if data.ai_active is not None:
         conversation.ai_active = data.ai_active
     if data.assigned_to_id is not None:

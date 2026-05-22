@@ -36,6 +36,7 @@ const templates = ref<any[]>([])
 const labels = ref<any[]>([])
 const members = ref<any[]>([])
 const instances = ref<any[]>([])
+const agents = ref<any[]>([])
 const automationsList = ref<any[]>([])
 
 const loading = ref(true)
@@ -45,7 +46,7 @@ const successMsg = ref('')
 
 const fetchAll = async () => {
   try {
-    const [auto, trig, acts, tpls, lbls, mbrs, insts, autos] = await Promise.all([
+    const [auto, trig, acts, tpls, lbls, mbrs, insts, agts, autos] = await Promise.all([
       api<Automation>(`/api/automations/${automationId}/`),
       api<TriggerMeta[]>('/api/automations/triggers/'),
       api<ActionMeta[]>('/api/automations/actions/'),
@@ -53,6 +54,7 @@ const fetchAll = async () => {
       api<any[]>('/api/labels/').catch(() => []),
       api<any[]>('/api/org/members').catch(() => []),
       api<any[]>('/api/integrations/whatsapp/').catch(() => []),
+      api<any[]>('/api/agents/').catch(() => []),
       api<any[]>('/api/automations/').catch(() => []),
     ])
     Object.assign(form, auto)
@@ -62,6 +64,7 @@ const fetchAll = async () => {
     labels.value = lbls
     members.value = mbrs
     instances.value = insts
+    agents.value = agts
     // ação "Iniciar outra automação" só mira automações com gatilho "Iniciada por automação"
     automationsList.value = autos.filter(
       (a: any) => a.id !== automationId && a.trigger_type === 'automation.chained',
@@ -223,6 +226,7 @@ onMounted(fetchAll)
             :labels="labels"
             :members="members"
             :instances="instances"
+            :agents="agents"
             :automations="automationsList"
             @remove="removeStep(idx)"
             @move-up="move(idx, -1)"

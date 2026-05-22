@@ -111,6 +111,7 @@ class UpdateConversationIn(Schema):
     status: Optional[str] = None
     ai_active: Optional[bool] = None
     assigned_to_id: Optional[int] = None
+    agent_id: Optional[int] = None
 
 class SendMessageIn(Schema):
     content: str
