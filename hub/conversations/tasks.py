@@ -102,6 +102,7 @@ def transcribe_and_process_message(self, attachment_id: int):
             conversation=conversation,
             role=Message.Role.ASSISTANT,
             content=response_text,
+            agent_name_snapshot=conversation.agent.name if conversation.agent else None,
         )
         notify_new_message(conversation.id, message)
         send_message(
@@ -293,7 +294,8 @@ def process_message(self, message_id: int):
         assistant_message = Message.objects.create(
             conversation=conversation,
             role=Message.Role.ASSISTANT,
-            content=response_text
+            content=response_text,
+            agent_name_snapshot=conversation.agent.name if conversation.agent else None,
         )
         notify_new_message(conversation.id, assistant_message)
         send_message(instance_api_key=instance.instance_api_key, phone=conversation.contact.phone, text=response_text)  
@@ -328,7 +330,12 @@ def deliver_split_messages(conversation_id, instance_id, chunks):
         delay = compute_delay_ms(chunk, agent.split_typing_speed_ms_per_char, agent.split_min_delay_ms, agent.split_max_delay_ms)
         time.sleep(delay / 1000)
 
-        msg = Message.objects.create(conversation=conv, role=Message.Role.ASSISTANT, content=chunk)
+        msg = Message.objects.create(
+            conversation=conv,
+            role=Message.Role.ASSISTANT,
+            content=chunk,
+            agent_name_snapshot=agent.name if agent else None,
+        )
         notify_new_message(conv.id, msg)
         send_message(instance_api_key=instance.instance_api_key, phone=phone, text=chunk)
 
@@ -514,7 +521,8 @@ def send_follow_up(self, conversation_id: int):
     message = Message.objects.create(
         conversation=conv,
         role=Message.Role.ASSISTANT,
-        content=response_text
+        content=response_text,
+        agent_name_snapshot=conv.agent.name if conv.agent else None,
     )
 
     notify_new_message(conv.id, message)

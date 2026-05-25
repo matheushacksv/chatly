@@ -647,7 +647,7 @@ const followUpLabel = computed(() => {
 
 const roleLabel = (role: string, msg?: any) => {
   if (role === 'user') return conv.value.contact?.name || 'Cliente'
-  if (role === 'assistant') return conv.value.agent_name || 'IA'
+  if (role === 'assistant') return msg?.agent_name_snapshot || conv.value.agent_name || 'IA'
   if (role === 'operator') return msg?.sent_by_name || authStore.user?.name || 'Operador'
   if (role === 'system') return 'Sistema'
   return role

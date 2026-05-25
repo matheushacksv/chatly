@@ -60,6 +60,7 @@ class Message(models.Model):
     role = models.CharField(max_length=10, choices=Role.choices)
     content = models.TextField()
     sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_messages')
+    agent_name_snapshot = models.CharField(max_length=255, blank=True, null=True)
     scheduled_at = models.DateTimeField(null=True, blank=True)
     scheduled_status = models.CharField(max_length=10, choices=ScheduledStatus.choices, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
