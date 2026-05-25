@@ -16,6 +16,7 @@ class AttachmentOut(Schema):
 class MessageOut(ModelSchema):
     attachments: list[AttachmentOut] = []
     sent_by_name: Optional[str] = None
+    agent_name_snapshot: Optional[str] = None
 
     class Meta:
         model = Message
