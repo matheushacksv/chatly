@@ -4,6 +4,7 @@ Thumbs.db
 
 # Editors
 .vscode/
+.zed/
 .idea/
 *.swp
 *.swo
@@ -25,3 +26,4 @@ chatly-dump.sql
 
 testes.rest
 test.rest
+test.http
