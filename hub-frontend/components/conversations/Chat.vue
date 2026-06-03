@@ -629,7 +629,7 @@ const isDifferentDay = (a: string, b: string) => {
 }
 
 const followUpLabel = computed(() => {
-  if (!conv.value.ai_active || !conv.value.agent_id) return null
+  if (!conv.value.ai_active) return null
   const count = conv.value.follow_up_count || 0
   const next = conv.value.next_follow_up_at
   if (!next) return null
@@ -709,7 +709,7 @@ const roleLabel = (role: string, msg?: any) => {
         <button
           @click="toggleAI"
           class="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors"
-          :class="conv.ai_active && conv.agent_id
+          :class="conv.ai_active
             ? 'border-accent/30 text-accent bg-accent/5 hover:bg-accent/10'
             : 'border-white/10 text-neutral-500 hover:border-white/20 hover:text-neutral-300'"
           :title="conv.ai_active ? 'Desativar IA' : 'Ativar IA'"
