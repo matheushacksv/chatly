@@ -1,4 +1,3 @@
-from enum import auto
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 import uuid
@@ -79,7 +78,7 @@ class Invite(models.Model):
     permission_group = models.ForeignKey(PermissionGroup, null=True, blank=True, on_delete=models.SET_NULL)
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     invited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='sent_invites')
-    accepted = models.BooleanField(default=False)
+    accepted = models.BooleanField(default=False) # type: ignore
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
 

@@ -229,7 +229,7 @@ def process_message(self, message_id: int):
     from agents.models import AIAgent
 
     try:
-        message = Message.objects.select_related('conversation__agent__provider').get(id=message_id)
+        message = Message.objects.select_related('conversation__agent__provider', 'conversation__instance').get(id=message_id)
     except Message.DoesNotExist:
         return
     
@@ -278,10 +278,16 @@ def process_message(self, message_id: int):
         return
 
     agent = conversation.agent
-    try:
-        instance = agent.whatsapp_instance
-    except Exception as e:
-        logger.error(f'[process_message] Erro ao obter instância: {e}')
+    instance = conversation.instance
+    if instance is None:
+        # fallback legado: conversas antigas sem FK instance usam o vínculo do agente oficial
+        try:
+            instance = agent.whatsapp_instance
+        except Exception as e:
+            logger.error(f'[process_message] Erro ao obter instância: {e}')
+            instance = None
+    if instance is None:
+        logger.error(f'[process_message] conversa {conversation.id} sem instância de envio')
         return
 
     if agent.split_messages_enabled:
