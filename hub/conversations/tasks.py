@@ -12,6 +12,28 @@ logger = logging.getLogger(__name__)
 ACCUMULATE_MARKER_KEY = 'accumulate:marker:{conv_id}'
 _RETRY_RE = re.compile(r'try again in ([\d.]+)\s*s', re.IGNORECASE)
 
+
+def _resolve_instance(conversation):
+    """Instância de envio da conversa: FK direta → vínculo do agente oficial → qualquer conectada.
+
+    Agente override (Conversation.agent != instance.agent) NÃO tem reverse `whatsapp_instance`
+    (OneToOne só aponta pro agente oficial). Por isso nunca resolver envio só por
+    `agent.whatsapp_instance` — quebra a troca de agente por conversa.
+    """
+    from integrations.models import WhatsAppInstance
+    if conversation.instance_id:
+        return conversation.instance
+    agent = conversation.agent
+    if agent:
+        try:
+            return agent.whatsapp_instance
+        except Exception:
+            pass
+    return WhatsAppInstance.objects.filter(
+        organization_id=conversation.organization_id,
+        status=WhatsAppInstance.Status.CONNECTED,
+    ).first()
+
 class AgnoInferenceError(Exception):
     '''agent.run() retornou status de erro (Agno engole a excção)'''
     def __init__(self, message, retry_after=None):
@@ -27,6 +49,7 @@ def transcribe_and_process_message(self, attachment_id: int):
     try: 
         attachment = MessageAttachment.objects.select_related(
         'message__conversation__agent__provider',
+        'message__conversation__instance',
         'message__conversation__contact',
     ).get(id=attachment_id)
     except MessageAttachment.DoesNotExist:
@@ -84,12 +107,11 @@ def transcribe_and_process_message(self, attachment_id: int):
     
     agent = conversation.agent
 
-    try:
-        instance = agent.whatsapp_instance
-    except Exception as e:
-        logger.error(f'[transcribe_and_process_mesage] Erro ao obter instância {e}')
+    instance = _resolve_instance(conversation)
+    if instance is None:
+        logger.error(f'[transcribe_and_process_message] conversa {conversation.id} sem instância de envio')
         return
-    
+
     if agent.split_messages_enabled:
         from conversations.utils.splitter import split_response
         chunks = split_response(response_text)
@@ -200,16 +222,14 @@ def send_scheduled_message(message_id: int):
 
     try:
         message = Message.objects.select_related(
-            'conversation__agent__whatsapp_instance', 'conversation__contact'
+            'conversation__agent__whatsapp_instance', 'conversation__instance', 'conversation__contact'
         ).get(id=message_id)
 
-        instance = message.conversation.agent.whatsapp_instance if message.conversation.agent else None
+        instance = _resolve_instance(message.conversation)
         if not instance:
-            from integrations.models import WhatsAppInstance
-            instance = WhatsAppInstance.objects.filter(
-                organization=message.conversation.organization_id,
-                status=WhatsAppInstance.Status.CONNECTED
-            ).first()
+            logger.error(f'[send_scheduled_message] conversa {message.conversation_id} sem instância de envio')
+            Message.objects.filter(id=message_id).update(scheduled_status='failed')
+            return
         phone = message.conversation.contact.phone
 
         send_message(instance_api_key=instance.instance_api_key, phone=phone, text=message.content)
@@ -278,14 +298,7 @@ def process_message(self, message_id: int):
         return
 
     agent = conversation.agent
-    instance = conversation.instance
-    if instance is None:
-        # fallback legado: conversas antigas sem FK instance usam o vínculo do agente oficial
-        try:
-            instance = agent.whatsapp_instance
-        except Exception as e:
-            logger.error(f'[process_message] Erro ao obter instância: {e}')
-            instance = None
+    instance = _resolve_instance(conversation)
     if instance is None:
         logger.error(f'[process_message] conversa {conversation.id} sem instância de envio')
         return
@@ -481,7 +494,7 @@ def send_follow_up(self, conversation_id: int):
 
     try:
         conv = Conversation.objects.select_related(
-            'agent__provider', 'agent__whatsapp_instance', 'contact'
+            'agent__provider', 'agent__whatsapp_instance', 'instance', 'contact'
         ).get(id=conversation_id)
     except Conversation.DoesNotExist:
         return
@@ -533,8 +546,11 @@ def send_follow_up(self, conversation_id: int):
 
     notify_new_message(conv.id, message)
 
+    instance = _resolve_instance(conv)
+    if instance is None:
+        logger.error(f'[send_follow_up] conversa {conv.id} sem instância de envio')
+        return
     try:
-        instance = conv.agent.whatsapp_instance
         send_message(instance_api_key=instance.instance_api_key, phone=conv.contact.phone, text=response_text)
     except Exception as e:
         logger.error(f'[send_follow_up] Erro ao enviar WA: {e}')
