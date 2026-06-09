@@ -35,7 +35,10 @@ def _get_instance(conversation, override_instance_id, organization):
     if conversation.instance_id:
         return conversation.instance
     if conversation.agent_id and conversation.agent:
-        return conversation.agent.whatsapp_instance
+        try:
+            return conversation.agent.whatsapp_instance
+        except Exception:
+            pass
     return WhatsAppInstance.objects.filter(organization=organization, status=WhatsAppInstance.Status.CONNECTED).first()
 
 
