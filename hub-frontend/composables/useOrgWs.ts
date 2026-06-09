@@ -14,6 +14,16 @@ export const useOrgWs = () => {
   // Último ID de mensagem visto por conversa
   const lastSeenMsgId = useState<Record<number, number>>('last-seen-msg-id', () => ({}))
 
+  // Ordena por data da última mensagem (desc) — comportamento WhatsApp.
+  // Fallback: started_at / created_at. Timestamps ISO comparam lexicograficamente.
+  const sortKey = (c: any) => c.last_message?.created_at || c.started_at || c.created_at || ''
+  const sortConversations = () => {
+    conversations.value.sort((a, b) => {
+      const ka = sortKey(a), kb = sortKey(b)
+      return ka < kb ? 1 : ka > kb ? -1 : 0
+    })
+  }
+
   // -------------------------------------------------------------------
   // Lógica de notificação / unread
   // -------------------------------------------------------------------
@@ -56,6 +66,7 @@ export const useOrgWs = () => {
         if (!conversations.value.some(c => c.id === conv.id)) {
           conversations.value.unshift(conv)
         }
+        sortConversations()
         handleIncoming(conv)
 
       } else if (payload.type === 'conversation_list_updated') {
@@ -63,7 +74,10 @@ export const useOrgWs = () => {
         const idx = conversations.value.findIndex(c => c.id === conv.id)
         if (idx !== -1) {
           conversations.value[idx] = { ...conversations.value[idx], ...conv }
+        } else {
+          conversations.value.unshift(conv)
         }
+        sortConversations()
         handleIncoming(conv)
       }
     }
@@ -93,6 +107,7 @@ export const useOrgWs = () => {
   // -------------------------------------------------------------------
   const initFromRest = (convs: any[]) => {
     conversations.value = convs
+    sortConversations()
     for (const conv of convs) {
       if (conv.last_message?.id) {
         lastSeenMsgId.value[conv.id] = conv.last_message.id

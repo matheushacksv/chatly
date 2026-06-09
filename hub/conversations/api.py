@@ -6,6 +6,7 @@ from contacts.models import Contact
 from integrations.models import WhatsAppInstance
 from ninja import Router, Query, File, Form
 from django.db.models import OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from .consumers import notify_new_conversation, notify_conversation_list_updated
 from ninja.files import UploadedFile
 from typing import Optional
@@ -90,8 +91,10 @@ def list_conversations(
         _last_msg_role=Subquery(last_msg.values('role')[:1]),
         _last_msg_content=Subquery(last_msg.values('content')[:1]),
         _last_msg_created_at=Subquery(last_msg.values('created_at')[:1]),
+    ).annotate(
+        _last_activity=Coalesce('_last_msg_created_at', 'started_at'),
     )
-    return list(qs.order_by('-started_at').prefetch_related('labels')[offset:offset + limit])
+    return list(qs.order_by('-_last_activity').prefetch_related('labels')[offset:offset + limit])
 
 
 @router.post('/start/', response={201: ConversationOut, 400: ErrorWithCodeSchema})
