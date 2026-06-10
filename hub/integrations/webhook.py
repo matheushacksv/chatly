@@ -71,10 +71,11 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
     if info.get('IsFromMe') or info.get('IsGroup'):
         return {'status': 'ignored'} #####! Ignorando fromMe e Group
 
-    from core.utils.phone import normalize_phone
+    from core.utils.phone import resolve_sender_phone
 
-    sender_raw = info.get('Sender', '').split('@')[0]
-    sender = normalize_phone(sender_raw)
+    sender, is_lid = resolve_sender_phone(info)
+    if not sender:
+        return {'status': 'ignored'}
     push_name = info.get('PushName', '')
     msg_obj = data.get('Message', {}) or {}
     text = (
