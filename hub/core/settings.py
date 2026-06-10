@@ -1,9 +1,10 @@
-from pathlib import Path
-from decouple import config
 from datetime import timedelta
+from pathlib import Path
+
 import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
+from decouple import config
 from sentry_sdk.integrations.celery import CeleryIntegration
+from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,7 +47,7 @@ INSTALLED_APPS = [
     'campaigns',
     'billing',
     'automations',
-    'django.contrib.postgres'
+    'django.contrib.postgres',
 ]
 
 MIDDLEWARE = [
@@ -146,7 +147,7 @@ sentry_sdk.init(
     dsn=config('SENTRY_DSN', default=''),
     integrations=[DjangoIntegration(), CeleryIntegration()],
     traces_sample_rate=0.1,
-    send_default_pii=False
+    send_default_pii=False,
 )
 
 
@@ -163,11 +164,11 @@ STORAGES = {
             'default_acl': 'public-read',
             'querystring_auth': False,
             'file_overwrite': False,
-        }
+        },
     },
     'staticfiles': {
         'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
-    }
+    },
 }
 
 
@@ -175,7 +176,7 @@ STORAGES = {
 
 NINJA_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7)
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
 # Redis
@@ -193,9 +194,7 @@ CACHES = {
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [config('REDIS_URL', default='redis://localhost:6380/0')]
-        },
+        'CONFIG': {'hosts': [config('REDIS_URL', default='redis://localhost:6379/0')]},
     }
 }
 
@@ -215,7 +214,7 @@ CELERY_TASK_ROUTES = {
 CELERY_BEAT_SCHEDULE = {
     'check-follow-ups': {
         'task': 'conversations.tasks.check_follow_ups',
-        'schedule': 1800 # (seconds)
+        'schedule': 1800,  # (seconds)
     }
 }
 
@@ -224,7 +223,9 @@ FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@seudominio.com')
 
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend'
+)
 EMAIL_HOST = config('EMAIL_HOST', default='')
 EMAIL_PORT = config('EMAIL_PORT', cast=int, default=587)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool, default=True)
@@ -232,7 +233,7 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 
 
-# EvoGO - Whatsapp 
+# EvoGO - Whatsapp
 
 EVOGO_BASE_URL = config('EVOGO_BASE_URL')
 EVOGO_GLOBAL_API_KEY = config('EVOGO_GLOBAL_API_KEY')

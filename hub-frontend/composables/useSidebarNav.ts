@@ -1,5 +1,5 @@
 export const allNavItems = [
-  { label: 'Dashboard',     icon: 'solar:widget-2-bold-duotone',           to: '/' },
+  { label: 'Dashboard',     icon: 'solar:widget-2-bold-duotone',           to: '/dashboard' },
   { label: 'Conversas',     icon: 'solar:chat-round-line-duotone',          to: '/conversations' },
   { label: 'Contatos',      icon: 'solar:users-group-rounded-bold-duotone', to: '/contacts' },
   { label: 'Agentes',       icon: 'solar:cpu-bolt-bold-duotone',            to: '/agents',    requireAgentPermission: true },
@@ -17,10 +17,13 @@ const HIDDEN_KEY = 'hub-sidebar-hidden'
 const ORDER_KEY  = 'hub-sidebar-order'
 
 export const useSidebarNav = () => {
+  // migra valor legado do Dashboard ('/' -> '/dashboard') em prefs salvas
+  const migratePaths = (paths: string[]) => paths.map(p => (p === '/' ? '/dashboard' : p))
+
   const hiddenPaths = useState<string[]>('sidebar-hidden', () => {
     if (process.client) {
       const saved = localStorage.getItem(HIDDEN_KEY)
-      if (saved) { try { return JSON.parse(saved) } catch {} }
+      if (saved) { try { return migratePaths(JSON.parse(saved)) } catch {} }
     }
     return []
   })
@@ -28,7 +31,7 @@ export const useSidebarNav = () => {
   const navOrder = useState<string[]>('sidebar-order', () => {
     if (process.client) {
       const saved = localStorage.getItem(ORDER_KEY)
-      if (saved) { try { return JSON.parse(saved) } catch {} }
+      if (saved) { try { return migratePaths(JSON.parse(saved)) } catch {} }
     }
     return allNavItems.map(i => i.to)
   })

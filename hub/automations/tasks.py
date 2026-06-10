@@ -60,8 +60,15 @@ def run_automation(self, run_id: int):
             variants = (step.config or {}).get('variants') or []
             if step.action_type == 'send_message' and variants:
                 from .variants import pick_variant_index
-                i = pick_variant_index(run.automation, step.order, variants)
-                step.config = {**step.config, 'text': variants[i].get('text', '')}
+                cfg = step.config or {}
+                # texto base entra no rodízio quando text_weight > 0;
+                # peso 0/ausente => base fora (compat com automações antigas)
+                base_weight = int(cfg.get('text_weight', 0) or 0)
+                pool = list(variants)
+                if base_weight > 0:
+                    pool = [{'text': cfg.get('text', ''), 'weight': base_weight}, *variants]
+                i = pick_variant_index(run.automation, step.order, pool)
+                step.config = {**cfg, 'text': pool[i].get('text', '')}
 
             context = dict(run.context or {})
             context['from_automation'] = True
