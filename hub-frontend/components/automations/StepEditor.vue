@@ -88,15 +88,25 @@ const ensureVariants = () => {
 }
 ensureVariants()
 
+const isSendMessage = computed(() => props.step.action_type === 'send_message')
+
 const addVariant = (key: string) => {
   if (!Array.isArray(props.step.config[key])) props.step.config[key] = []
-  props.step.config[key].push({ text: '', weight: 0 })
+  // 1ª variação de send_message: texto base passa a participar do rodízio (50/50)
+  if (isSendMessage.value && props.step.config[key].length === 0 && props.step.config.text_weight == null) {
+    props.step.config.text_weight = 50
+  }
+  props.step.config[key].push({ text: '', weight: 50 })
 }
 const removeVariant = (key: string, i: number) => {
   props.step.config[key].splice(i, 1)
 }
 const variantsSum = (key: string): number =>
   (props.step.config[key] || []).reduce((s: number, v: any) => s + (Number(v.weight) || 0), 0)
+// total incluindo o texto base (só conta no send_message quando text_weight > 0)
+const effectiveTotal = (key: string): number =>
+  (isSendMessage.value ? (Number(props.step.config.text_weight) || 0) : 0) + variantsSum(key)
+const hasVariants = (key: string): boolean => (props.step.config[key] || []).length > 0
 
 const onActionChange = () => {
   // resetar config ao mudar tipo
@@ -262,9 +272,26 @@ const parseJson = (raw: string, key: string) => {
       </div>
 
       <div v-for="field in currentAction.fields" :key="field.key">
-        <label class="field-label">
-          {{ field.label }}
-          <span v-if="field.required" class="text-red-400">*</span>
+        <label class="field-label flex items-center gap-2">
+          <span>
+            {{ field.label }}
+            <span v-if="field.required" class="text-red-400">*</span>
+          </span>
+          <!-- % do texto base no rodízio (send_message com variações) -->
+          <span
+            v-if="isSendMessage && field.key === 'text' && hasVariants('variants')"
+            class="ml-auto flex items-center gap-1 normal-case"
+            title="Peso do texto base no rodízio (0 = não participa)"
+          >
+            <input
+              v-model.number="props.step.config.text_weight"
+              type="number"
+              min="0"
+              max="100"
+              class="w-16 bg-surface border border-white/10 text-xs text-white font-mono px-2 py-1 outline-none focus:border-white/20"
+            />
+            <span class="text-[10px] font-mono text-neutral-500">%</span>
+          </span>
         </label>
 
         <!-- text -->
@@ -430,13 +457,15 @@ const parseJson = (raw: string, key: string) => {
           >+ Variação</button>
           <p
             class="text-[10px] font-mono"
-            :class="(props.step.config[field.key] || []).length === 0 || variantsSum(field.key) === 100 ? 'text-neutral-600' : 'text-amber-400'"
+            :class="(props.step.config[field.key] || []).length === 0 || effectiveTotal(field.key) === 100 ? 'text-neutral-600' : 'text-amber-400'"
           >
             <template v-if="(props.step.config[field.key] || []).length">
-              Soma dos pesos: {{ variantsSum(field.key) }}% · rodízio proporcional a cada disparo. O campo "Texto" acima é ignorado quando há variações.
+              Soma total (texto + variações): {{ effectiveTotal(field.key) }}% · rodízio proporcional a cada disparo.
+              <template v-if="(Number(props.step.config.text_weight) || 0) > 0">O texto acima participa do rodízio com {{ Number(props.step.config.text_weight) || 0 }}%.</template>
+              <template v-else>O texto acima NÃO participa (peso 0) — só as variações são enviadas.</template>
             </template>
             <template v-else>
-              Sem variações — usa o campo "Texto" acima. Adicione 2+ para fazer rodízio por %.
+              Sem variações — envia o campo "Texto" acima. Adicione variações para fazer rodízio por %.
             </template>
           </p>
         </div>

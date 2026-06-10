@@ -23,7 +23,7 @@ ACTIONS_META = [
         'fields': [
             {'key': 'instance_id', 'label': 'Instância', 'type': 'instance_select', 'required': True},
             {'key': 'text', 'label': 'Texto', 'type': 'textarea', 'required': True},
-            {'key': 'variants', 'label': 'Variações (rodízio por %)', 'type': 'messages_variants'},
+            {'key': 'variants', 'label': 'Variações adicionais (rodízio por %)', 'type': 'messages_variants'},
         ],
     },
     {
