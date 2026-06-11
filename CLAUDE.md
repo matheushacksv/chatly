@@ -60,7 +60,7 @@ Frontend (useApi.ts + Pinia) → /api/* (Django Ninja) → PostgreSQL
 | Prefix | Módulo |
 |--------|--------|
 | `/api/auth/` | accounts — register, login, refresh, me |
-| `/api/org/` | accounts — org, membros, convites |
+| `/api/org/` | accounts — org, membros, convites (listar/revogar/reenviar pendentes) |
 | `/api/agents/` | agents — CRUD + documentos + providers |
 | `/api/conversations/` | conversations — mensagens, anexos |
 | `/api/contacts/` | contacts — CRUD, anotações, importação CSV, etiquetas |
@@ -88,6 +88,7 @@ Ver `conversations/tasks.py` e `agents/tasks.py`.
 - **API keys criptografadas:** `EncryptedTextField` via `django-encrypted-model-fields`; requer `FIELD_ENCRYPTION_KEY` no `.env`.
 - **Status de documento:** `pending → processing → ready | failed` (atualizado por Celery).
 - **Roles de mensagem:** `user`, `assistant`, `system`, `operator` (intervenção manual).
+- **Convites pendentes:** `Invite.accepted` (bool) = pendente quando `False`; `is_valid()` exige não-aceito E `expires_at > now`. Gestão (owner/admin) em `accounts/org_api.py`: `GET /api/org/invites` (lista `accepted=False`, schema `InviteOut` calcula `is_expired`), `DELETE /api/org/invites/{id}` (**hard delete** → `accept_invite` faz `get_object_or_404(Invite, token=...)`, então token revogado dá 404), `POST /api/org/invites/{id}/resend` (renova `expires_at` +7d, **mesmo token**, redispara `send_invite_email.delay`). `create_invite` bloqueia 2º convite p/ email com `accepted=False` existente — por isso revogar destrava reenvio manual. Frontend: seção "Convites pendentes" na aba Membros de `/org` (badge "Expirado", reenviar, revogar). Regressão em `accounts/tests.py`.
 - **Agno:** camada de abstração sobre OpenAI/Anthropic/Groq — troca de provider sem mudar lógica de negócio.
 - **Frontend — token refresh:** `useApi.ts` intercepta 401 e tenta renovar o access token automaticamente; store Pinia sincroniza com `localStorage`.
 - **Django Ninja — ordenação de rotas:** rotas literais (ex: `/import`, `/labels`) DEVEM ser definidas ANTES das rotas parametrizadas (`/{id}`) no mesmo router; caso contrário o parâmetro captura o literal e retorna 405.

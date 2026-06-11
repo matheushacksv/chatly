@@ -5,7 +5,7 @@ from accounts.models import OrganizationMembership
 from ninja import Router
 from core.utils.errors import ErrorWithCodeSchema, GenericErrorSchema
 from .models import Organization, User, PermissionGroup, Invite, BusinessHours
-from .schemas import MemberOut, UpdateMemberIn, PermissionGroupIn, PermissionsGroupOut, InviteIn, OrgSettingsIn, OrgSettingsOut, BusinessHoursIn, BusinessHoursOut, ApiKeyOut
+from .schemas import MemberOut, UpdateMemberIn, PermissionGroupIn, PermissionsGroupOut, InviteIn, InviteOut, OrgSettingsIn, OrgSettingsOut, BusinessHoursIn, BusinessHoursOut, ApiKeyOut
 from django.utils import timezone
 from datetime import timedelta
 from .tasks import send_invite_email
@@ -182,6 +182,40 @@ def create_invite(request, data: InviteIn):
     send_invite_email.delay(invite.id)
 
     return 201, None
+
+@router.get('/invites', response={200: list[InviteOut], 403: ErrorWithCodeSchema})
+def list_invites(request):
+    if not is_owner_or_admin(request.auth):
+        return 403, ErrorWithCodeSchema(detail='No permission', code='no_permission')
+    return 200, (
+        Invite.objects.filter(organization=request.auth.organization, accepted=False)
+        .select_related('invited_by', 'permission_group')
+        .order_by('-created_at')
+    )
+
+@router.delete('/invites/{invite_id}', response={204: None, 403: ErrorWithCodeSchema, 404: ErrorWithCodeSchema})
+def revoke_invite(request, invite_id: int):
+    if not is_owner_or_admin(request.auth):
+        return 403, ErrorWithCodeSchema(detail='No permission', code='no_permission')
+    try:
+        invite = Invite.objects.get(id=invite_id, organization=request.auth.organization, accepted=False)
+    except Invite.DoesNotExist:
+        return 404, ErrorWithCodeSchema(detail='Invite not found', code='invite_not_found')
+    invite.delete()  # hard delete → token deixa de aceitar (accept dá 404)
+    return 204, None
+
+@router.post('/invites/{invite_id}/resend', response={200: None, 403: ErrorWithCodeSchema, 404: ErrorWithCodeSchema})
+def resend_invite(request, invite_id: int):
+    if not is_owner_or_admin(request.auth):
+        return 403, ErrorWithCodeSchema(detail='No permission', code='no_permission')
+    try:
+        invite = Invite.objects.get(id=invite_id, organization=request.auth.organization, accepted=False)
+    except Invite.DoesNotExist:
+        return 404, ErrorWithCodeSchema(detail='Invite not found', code='invite_not_found')
+    invite.expires_at = timezone.now() + timedelta(days=7)  # renova validade, mesmo token
+    invite.save(update_fields=['expires_at'])
+    send_invite_email.delay(invite.id)
+    return 200, None
 
 #* ------ Pipedrive Integration Endpoints ------
 
