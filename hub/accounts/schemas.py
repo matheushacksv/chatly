@@ -1,7 +1,7 @@
 from ninja import Schema
 from pydantic import EmailStr, Field, model_validator
 from typing import Optional, Annotated, Self
-from datetime import time
+from datetime import time, datetime
 
 # Auth Schemas
 
@@ -156,6 +156,25 @@ class InviteIn(Schema):
     email: EmailStr
     role: str
     permission_group_id: Optional[int] = None
+
+class InviteOut(Schema):
+    id: int
+    email: str
+    role: str
+    permission_group: Optional[PermissionsGroupOut] = None
+    invited_by: Optional[str] = None        # nome de quem convidou
+    created_at: datetime
+    expires_at: datetime
+    is_expired: bool
+
+    @staticmethod
+    def resolve_invited_by(obj):
+        return obj.invited_by.name if obj.invited_by else None
+
+    @staticmethod
+    def resolve_is_expired(obj):
+        from django.utils import timezone
+        return obj.expires_at <= timezone.now()
 
 class AcceptInviteIn(Schema):
     token: str

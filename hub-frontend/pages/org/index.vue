@@ -29,12 +29,39 @@ const fetchGroups = async () => {
 onMounted(async () => {
   await Promise.all([fetchMembers(), fetchGroups()])
   if (isOwnerOrAdmin.value) {
-    await fetchPipedrive()
+    await Promise.all([fetchPipedrive(), fetchInvites()])
   }
   loadingMembers.value = false
 })
 
 const { page: mbPage, totalPages: mbTotalPages, paged: pagedMembers, prev: mbPrev, next: mbNext, goTo: mbGoTo } = usePagination(members, 15)
+
+// ---- Convites pendentes ----
+const invites = ref<any[]>([])
+const resentId = ref<number | null>(null)
+
+const fetchInvites = async () => {
+  try {
+    invites.value = await api<any[]>('/api/org/invites')
+  } catch {}
+}
+
+const revokeInvite = async (inv: any) => {
+  if (!await confirmDialog(`Revogar o convite de ${inv.email}? O link enviado deixa de funcionar.`, { title: 'Revogar convite' })) return
+  try {
+    await api(`/api/org/invites/${inv.id}`, { method: 'DELETE' })
+    invites.value = invites.value.filter(x => x.id !== inv.id)
+  } catch {}
+}
+
+const resendInvite = async (inv: any) => {
+  try {
+    await api(`/api/org/invites/${inv.id}/resend`, { method: 'POST' })
+    resentId.value = inv.id
+    setTimeout(() => { if (resentId.value === inv.id) resentId.value = null }, 2500)
+    await fetchInvites()  // expires_at renovado limpa o badge "Expirado"
+  } catch {}
+}
 
 // ---- Invite modal ----
 const inviteModal = ref(false)
@@ -66,6 +93,7 @@ const submitInvite = async () => {
       },
     })
     inviteSuccess.value = true
+    await fetchInvites()  // novo convite aparece na lista de pendentes
   } catch (e: any) {
     inviteError.value = e?.data?.detail || 'Erro ao enviar convite'
   } finally {
@@ -514,6 +542,62 @@ const permLabels: Record<string, string> = {
         @next="mbNext"
         @go-to="mbGoTo"
       />
+
+      <!-- Convites pendentes (só owner/admin) -->
+      <div v-if="isOwnerOrAdmin && invites.length" class="mt-8">
+        <p class="text-xs font-mono text-neutral-500 mb-3">
+          {{ invites.length }} convite{{ invites.length !== 1 ? 's' : '' }} pendente{{ invites.length !== 1 ? 's' : '' }}
+        </p>
+        <div class="border border-white/5 divide-y divide-white/5">
+          <div
+            v-for="inv in invites"
+            :key="inv.id"
+            class="flex items-center gap-4 px-5 py-4"
+          >
+            <div class="w-10 h-10 bg-neutral-900 border border-white/10 flex items-center justify-center shrink-0">
+              <Icon icon="solar:letter-bold-duotone" class="text-base text-neutral-500" />
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <p class="text-sm text-white font-medium truncate">{{ inv.email }}</p>
+                <span
+                  class="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5"
+                  :class="roleBadge(inv.role).cls"
+                >{{ roleBadge(inv.role).label }}</span>
+                <span v-if="inv.permission_group" class="text-[9px] font-mono text-neutral-500 bg-white/5 px-1.5 py-0.5">
+                  {{ inv.permission_group.name }}
+                </span>
+                <span
+                  v-if="inv.is_expired"
+                  class="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 text-amber-400 bg-amber-400/10"
+                >Expirado</span>
+              </div>
+              <p class="text-[11px] font-mono text-neutral-600 mt-0.5">
+                <span v-if="inv.invited_by">Convidado por {{ inv.invited_by }} · </span>{{ inv.is_expired ? 'Expirou' : 'Expira' }} {{ new Date(inv.expires_at).toLocaleDateString('pt-BR') }}
+              </p>
+            </div>
+
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                @click="resendInvite(inv)"
+                class="p-1.5 transition-colors"
+                :class="resentId === inv.id ? 'text-green-400' : 'text-neutral-300 hover:text-accent'"
+                :title="resentId === inv.id ? 'Reenviado' : 'Reenviar convite'"
+              >
+                <Icon :icon="resentId === inv.id ? 'solar:check-circle-bold-duotone' : 'solar:refresh-bold-duotone'" class="text-base" />
+              </button>
+              <button
+                @click="revokeInvite(inv)"
+                class="p-1.5 text-neutral-300 hover:text-red-400 transition-colors"
+                title="Revogar convite"
+              >
+                <Icon icon="solar:trash-bin-trash-bold-duotone" class="text-base" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ======================== GRUPOS ======================== -->
