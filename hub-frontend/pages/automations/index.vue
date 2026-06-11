@@ -25,6 +25,16 @@ const error = ref('')
 
 const triggerLabel = (t: string) => triggers.value.find(x => x.type === t)?.label ?? t
 
+// Copia o id (usado como automation_id na API pública).
+const copiedId = ref<number | null>(null)
+const copyId = async (id: number) => {
+  try {
+    await navigator.clipboard.writeText(String(id))
+    copiedId.value = id
+    setTimeout(() => { if (copiedId.value === id) copiedId.value = null }, 2000)
+  } catch {}
+}
+
 const fetchAll = async () => {
   loading.value = true
   try {
@@ -130,6 +140,15 @@ onMounted(fetchAll)
             {{ triggerLabel(a.trigger_type) }} · {{ a.steps_count }} {{ a.steps_count === 1 ? 'passo' : 'passos' }}
           </p>
         </NuxtLink>
+
+        <button
+          @click="copyId(a.id)"
+          class="px-2 py-1 font-mono text-[10px] border border-white/10 text-neutral-500 hover:text-accent hover:border-accent/40 transition-colors flex items-center gap-1 shrink-0"
+          :title="`Copiar id (automation_id da API): ${a.id}`"
+        >
+          <Icon :icon="copiedId === a.id ? 'solar:check-circle-bold-duotone' : 'solar:hashtag-bold-duotone'" class="text-[11px]" :class="copiedId === a.id ? 'text-green-400' : ''" />
+          {{ a.id }}
+        </button>
 
         <NuxtLink
           :to="`/automations/${a.id}/runs`"

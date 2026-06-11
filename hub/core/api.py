@@ -10,6 +10,7 @@ from conversations.api import router as conversations_router
 from integrations.webhook import router as webhook_router
 from integrations.pipedrive_webhook import router as pipedrive_webhook_router
 from contacts.api import router as contact_router
+from contacts.public_api import router as public_router
 from templates.api import router as templates_router
 from labels.api import router as labels_router
 from campaigns.api import router as campaigns_router
@@ -27,6 +28,7 @@ api.add_router('conversations/', conversations_router)
 api.add_router('webhooks/whatsapp/', webhook_router)
 api.add_router('webhooks/pipedrive/', pipedrive_webhook_router)
 api.add_router('contacts/', contact_router),
+api.add_router('public/', public_router)
 api.add_router('templates/', templates_router)
 api.add_router('labels/', labels_router)
 api.add_router('campaigns/', campaigns_router)

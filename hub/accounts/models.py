@@ -6,10 +6,20 @@ import uuid
 class Organization(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True)
+    # API key pública da org — Bearer da API externa (ver contacts/public_api.py).
+    # Plaintext + unique/db_index porque a auth busca a org por valor exato
+    # (mesmo motivo de PipedriveIntegration.webhook_secret não ser criptografado).
+    api_key = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
+    def generate_api_key(self):
+        import secrets
+        self.api_key = secrets.token_urlsafe(32)
+        self.save(update_fields=['api_key'])
+        return self.api_key
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password, **extra_fields):
