@@ -24,7 +24,11 @@ class PublicContactIn(Schema):
     phone: str
     email: Optional[str] = None
     custom_fields: dict = {}
+    # Dispara uma automação específica pelo id (override preciso, opcional).
     automation_id: Optional[int] = None
+    # Roteamento do gatilho 'api.request': automações com trigger_filters
+    # {'source': <x>} só rodam se este valor casar. None = roda as sem filtro.
+    source: Optional[str] = None
 
 
 class PublicContactOut(Schema):
@@ -76,10 +80,15 @@ def create_public_contact(request, data: PublicContactIn):
     if PipedriveIntegration.objects.filter(organization=org, is_active=True).exists():
         sync_contact_to_pipedrive.delay(contact.id)
 
+    from automations.events import trigger_event
+
     # contact.created só na criação nova → idempotente p/ retries da integração.
     if created:
-        from automations.events import trigger_event
         trigger_event('contact.created', org.id, contact_id=contact.id)
+
+    # api.request dispara em TODA chamada (cada requisição é um evento HTTP) —
+    # caminho idiomático sem precisar de automation_id. Roteável por `source`.
+    trigger_event('api.request', org.id, contact_id=contact.id, source=data.source)
 
     automation_started = False
     if automation is not None:

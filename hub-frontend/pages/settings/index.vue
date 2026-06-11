@@ -165,11 +165,15 @@ const maskedKey = computed(() =>
   apiKey.value ? apiKey.value.slice(0, 6) + '••••••••••••••••' + apiKey.value.slice(-4) : ''
 )
 const curlSnippet = computed(() => {
-  const autoId = selectedAutomationId.value ?? '<AUTOMATION_ID>'
+  // Default: caminho idiomático via gatilho 'Requisição recebida (API)' + source.
+  // Se o usuário clicar numa automação da lista, mostra o override por automation_id.
+  const payload = selectedAutomationId.value !== null
+    ? `{"name": "João", "phone": "5548999990000", "automation_id": ${selectedAutomationId.value}}`
+    : `{"name": "João", "phone": "5548999990000", "source": "landing-x"}`
   return `curl -X POST ${publicUrl.value} \\\n` +
     `  -H "Authorization: Bearer ${apiKeyVisible.value ? apiKey.value : 'SUA_API_KEY'}" \\\n` +
     `  -H "Content-Type: application/json" \\\n` +
-    `  -d '{"name": "João", "phone": "5548999990000", "automation_id": ${autoId}}'`
+    `  -d '${payload}'`
 })
 
 const loadApiKey = async () => {
@@ -432,6 +436,7 @@ watch(tab, (t) => { if (t === 'organization') loadApiKey() }, { immediate: true 
             <p class="text-sm text-white font-medium">API pública</p>
             <p class="text-[11px] font-mono text-neutral-600 mt-0.5">
               Crie contatos e dispare automações via API com esta chave. Mantenha-a secreta.
+              Recomendado: criar uma automação com gatilho <span class="text-neutral-400">"Requisição recebida (API)"</span> e rotear por <span class="text-neutral-400">source</span> — sem precisar de ids.
             </p>
           </div>
         </div>
@@ -482,7 +487,7 @@ watch(tab, (t) => { if (t === 'organization') loadApiKey() }, { immediate: true 
 
         <!-- Automações (referência de automation_id) -->
         <div v-if="orgAutomations.length" class="mt-6">
-          <p class="field-label mb-2">Automações — clique pra copiar o automation_id</p>
+          <p class="field-label mb-2">Override por id — clique pra copiar o automation_id</p>
           <div class="space-y-px max-h-48 overflow-y-auto border border-white/5">
             <button
               v-for="auto in orgAutomations"
@@ -506,8 +511,8 @@ watch(tab, (t) => { if (t === 'organization') loadApiKey() }, { immediate: true 
         <pre class="text-[10px] font-mono text-neutral-400 bg-canvas border border-white/5 p-3 overflow-x-auto leading-relaxed">{{ curlSnippet }}</pre>
         <p class="text-[10px] font-mono text-neutral-700 mt-2 leading-relaxed">
           <span class="text-neutral-500">name</span> e <span class="text-neutral-500">phone</span> obrigatórios ·
-          <span class="text-neutral-500">email</span>, <span class="text-neutral-500">custom_fields</span>, <span class="text-neutral-500">automation_id</span> opcionais ·
-          telefone já existente é atualizado (não duplica).
+          <span class="text-neutral-500">email</span>, <span class="text-neutral-500">custom_fields</span>, <span class="text-neutral-500">source</span>, <span class="text-neutral-500">automation_id</span> opcionais ·
+          o gatilho <span class="text-neutral-500">"Requisição recebida (API)"</span> dispara em toda chamada · telefone já existente é atualizado (não duplica).
         </p>
       </div>
     </div>
