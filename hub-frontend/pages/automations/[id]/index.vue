@@ -127,13 +127,18 @@ const save = async () => {
   saving.value = true
   error.value = ''
   successMsg.value = ''
+  // Remove filtros vazios (source '' bloquearia indevidamente o match).
+  const cleanedFilters: Record<string, any> = {}
+  for (const [k, v] of Object.entries(form.trigger_filters || {})) {
+    if (v !== '' && v !== null && v !== undefined) cleanedFilters[k] = v
+  }
   try {
     await api(`/api/automations/${automationId}/`, {
       method: 'PATCH',
       body: {
         name: form.name,
         trigger_type: form.trigger_type,
-        trigger_filters: form.trigger_filters,
+        trigger_filters: cleanedFilters,
         is_active: form.is_active,
         steps: form.steps.map(serializeStep),
       },
@@ -191,6 +196,21 @@ onMounted(fetchAll)
           >
             <option v-for="t in triggers" :key="t.type" :value="t.type">{{ t.label }}</option>
           </select>
+        </div>
+
+        <!-- Filtro 'source' do gatilho Requisição (API): roteia qual automação roda
+             conforme o campo source do POST. Vazio = roda em qualquer requisição. -->
+        <div v-if="form.trigger_type === 'api.request'">
+          <label class="field-label">Source (opcional)</label>
+          <input
+            v-model="form.trigger_filters.source"
+            type="text"
+            placeholder="ex: landing-x — vazio roda em toda requisição"
+            class="w-full bg-canvas border border-white/10 text-sm text-white font-mono px-3 py-2 outline-none focus:border-white/20"
+          />
+          <p class="text-[10px] font-mono text-neutral-700 mt-1">
+            Casa com <span class="text-neutral-500">{{ '{' }}"source": "..."{{ '}' }}</span> enviado no POST da API.
+          </p>
         </div>
 
         <label class="flex items-center gap-2 cursor-pointer pt-2">

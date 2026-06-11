@@ -9,6 +9,7 @@ TRIGGER_CHOICES = [
     ('message.received', 'Mensagem recebida'),
     ('agent.goal_completed', 'Objetivo do agente cumprido'),
     ('automation.chained', 'Iniciada por automação'),
+    ('api.request', 'Requisição recebida (API)'),
 ]
 
 ACTION_CHOICES = [
