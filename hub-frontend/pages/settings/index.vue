@@ -145,6 +145,85 @@ const saveOrg = async () => {
     orgLoading.value = false
   }
 }
+
+// ---- API pública (key da org) ----
+const runtimeConfig = useRuntimeConfig()
+const { confirm } = useConfirm()
+const apiKey = ref('')
+const apiKeyLoading = ref(false)
+const apiKeyVisible = ref(false)
+const apiKeyCopied = ref(false)
+const apiKeyLoaded = ref(false)
+
+// Automações da org (referência p/ o campo automation_id da API).
+const orgAutomations = ref<any[]>([])
+const selectedAutomationId = ref<number | null>(null)
+const copiedAutoId = ref<number | null>(null)
+
+const publicUrl = computed(() => `${runtimeConfig.public.apiBase}/api/public/contacts`)
+const maskedKey = computed(() =>
+  apiKey.value ? apiKey.value.slice(0, 6) + '••••••••••••••••' + apiKey.value.slice(-4) : ''
+)
+const curlSnippet = computed(() => {
+  const autoId = selectedAutomationId.value ?? '<AUTOMATION_ID>'
+  return `curl -X POST ${publicUrl.value} \\\n` +
+    `  -H "Authorization: Bearer ${apiKeyVisible.value ? apiKey.value : 'SUA_API_KEY'}" \\\n` +
+    `  -H "Content-Type: application/json" \\\n` +
+    `  -d '{"name": "João", "phone": "5548999990000", "automation_id": ${autoId}}'`
+})
+
+const loadApiKey = async () => {
+  if (apiKeyLoaded.value || !isOwnerOrAdmin.value) return
+  apiKeyLoading.value = true
+  try {
+    const [res, autos] = await Promise.all([
+      api<any>('/api/org/api-key'),
+      api<any[]>('/api/automations/').catch(() => []),
+    ])
+    apiKey.value = res.api_key || ''
+    orgAutomations.value = autos || []
+    apiKeyLoaded.value = true
+  } catch {} finally {
+    apiKeyLoading.value = false
+  }
+}
+
+const copyAutoId = async (id: number) => {
+  try {
+    await navigator.clipboard.writeText(String(id))
+    selectedAutomationId.value = id  // injeta no snippet curl
+    copiedAutoId.value = id
+    setTimeout(() => { if (copiedAutoId.value === id) copiedAutoId.value = null }, 2000)
+  } catch {}
+}
+
+const regenApiKey = async () => {
+  const ok = await confirm(
+    'Regenerar a API key invalida a anterior — integrações que a usam param de funcionar até atualizar a key.',
+    { title: 'Regenerar API key', confirmLabel: 'Regenerar' }
+  )
+  if (!ok) return
+  apiKeyLoading.value = true
+  try {
+    const res = await api<any>('/api/org/api-key/regenerate', { method: 'POST' })
+    apiKey.value = res.api_key || ''
+    apiKeyVisible.value = true
+  } catch {} finally {
+    apiKeyLoading.value = false
+  }
+}
+
+const copyApiKey = async () => {
+  if (!apiKey.value) return
+  try {
+    await navigator.clipboard.writeText(apiKey.value)
+    apiKeyCopied.value = true
+    setTimeout(() => apiKeyCopied.value = false, 2000)
+  } catch {}
+}
+
+// Carrega a key ao abrir a aba Organização (lazy, uma vez).
+watch(tab, (t) => { if (t === 'organization') loadApiKey() }, { immediate: true })
 </script>
 
 <template>
@@ -344,6 +423,93 @@ const saveOrg = async () => {
           </button>
         </div>
       </form>
+
+      <!-- ===== API pública ===== -->
+      <div v-if="isOwnerOrAdmin" class="mt-10 pt-8 border-t border-white/5">
+        <div class="flex items-start gap-3 mb-5">
+          <Icon icon="solar:code-bold-duotone" class="text-accent text-lg shrink-0 mt-0.5" />
+          <div>
+            <p class="text-sm text-white font-medium">API pública</p>
+            <p class="text-[11px] font-mono text-neutral-600 mt-0.5">
+              Crie contatos e dispare automações via API com esta chave. Mantenha-a secreta.
+            </p>
+          </div>
+        </div>
+
+        <!-- Key -->
+        <label class="field-label">API key</label>
+        <div class="flex items-center gap-2 mt-1">
+          <div class="input-wrapper flex-1 font-mono">
+            <input
+              :value="apiKeyVisible ? apiKey : maskedKey"
+              type="text"
+              readonly
+              :placeholder="apiKeyLoading ? 'Carregando...' : '—'"
+              class="input-field text-xs cursor-default"
+              style="font-family: ui-monospace, monospace;"
+            />
+          </div>
+          <button
+            type="button"
+            @click="apiKeyVisible = !apiKeyVisible"
+            :disabled="!apiKey"
+            class="p-2.5 border border-white/10 hover:bg-white/5 transition-colors disabled:opacity-30"
+            :title="apiKeyVisible ? 'Ocultar' : 'Mostrar'"
+          >
+            <Icon :icon="apiKeyVisible ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'" class="text-sm text-neutral-400" />
+          </button>
+          <button
+            type="button"
+            @click="copyApiKey"
+            :disabled="!apiKey"
+            class="p-2.5 border border-white/10 hover:bg-white/5 transition-colors disabled:opacity-30"
+            title="Copiar"
+          >
+            <Icon :icon="apiKeyCopied ? 'solar:check-circle-bold-duotone' : 'solar:copy-bold-duotone'" class="text-sm" :class="apiKeyCopied ? 'text-green-400' : 'text-neutral-400'" />
+          </button>
+        </div>
+
+        <div class="flex justify-end mt-3">
+          <button
+            type="button"
+            @click="regenApiKey"
+            :disabled="apiKeyLoading"
+            class="text-[10px] font-mono uppercase tracking-wider text-red-400 border border-red-400/30 px-3 py-1.5 hover:bg-red-400/10 transition-colors disabled:opacity-40"
+          >
+            Regenerar
+          </button>
+        </div>
+
+        <!-- Automações (referência de automation_id) -->
+        <div v-if="orgAutomations.length" class="mt-6">
+          <p class="field-label mb-2">Automações — clique pra copiar o automation_id</p>
+          <div class="space-y-px max-h-48 overflow-y-auto border border-white/5">
+            <button
+              v-for="auto in orgAutomations"
+              :key="auto.id"
+              type="button"
+              @click="copyAutoId(auto.id)"
+              class="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-white/[0.03] transition-colors text-left"
+              :class="selectedAutomationId === auto.id ? 'ring-1 ring-accent/40' : ''"
+            >
+              <span class="font-mono text-[11px] text-accent shrink-0">#{{ auto.id }}</span>
+              <span class="text-xs text-neutral-300 truncate flex-1">{{ auto.name }}</span>
+              <span v-if="!auto.is_active" class="text-[9px] font-mono uppercase tracking-widest text-neutral-700 shrink-0">inativa</span>
+              <Icon :icon="copiedAutoId === auto.id ? 'solar:check-circle-bold-duotone' : 'solar:copy-bold-duotone'" class="text-sm shrink-0" :class="copiedAutoId === auto.id ? 'text-green-400' : 'text-neutral-600'" />
+            </button>
+          </div>
+          <p class="text-[10px] font-mono text-neutral-700 mt-1.5">Só automações <span class="text-neutral-500">ativas</span> rodam via API.</p>
+        </div>
+
+        <!-- Exemplo -->
+        <p class="field-label mt-6 mb-2">Exemplo (POST {{ publicUrl }})</p>
+        <pre class="text-[10px] font-mono text-neutral-400 bg-canvas border border-white/5 p-3 overflow-x-auto leading-relaxed">{{ curlSnippet }}</pre>
+        <p class="text-[10px] font-mono text-neutral-700 mt-2 leading-relaxed">
+          <span class="text-neutral-500">name</span> e <span class="text-neutral-500">phone</span> obrigatórios ·
+          <span class="text-neutral-500">email</span>, <span class="text-neutral-500">custom_fields</span>, <span class="text-neutral-500">automation_id</span> opcionais ·
+          telefone já existente é atualizado (não duplica).
+        </p>
+      </div>
     </div>
 
     <!-- ======== APARÊNCIA ======== -->

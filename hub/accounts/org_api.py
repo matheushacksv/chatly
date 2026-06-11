@@ -1,9 +1,11 @@
+from typing import Any
+
 from django.shortcuts import get_object_or_404
 from accounts.models import OrganizationMembership
 from ninja import Router
 from core.utils.errors import ErrorWithCodeSchema, GenericErrorSchema
-from .models import User, PermissionGroup, Invite, BusinessHours
-from .schemas import MemberOut, UpdateMemberIn, PermissionGroupIn, PermissionsGroupOut, InviteIn, OrgSettingsIn, OrgSettingsOut, BusinessHoursIn, BusinessHoursOut
+from .models import Organization, User, PermissionGroup, Invite, BusinessHours
+from .schemas import MemberOut, UpdateMemberIn, PermissionGroupIn, PermissionsGroupOut, InviteIn, OrgSettingsIn, OrgSettingsOut, BusinessHoursIn, BusinessHoursOut, ApiKeyOut
 from django.utils import timezone
 from datetime import timedelta
 from .tasks import send_invite_email
@@ -79,6 +81,25 @@ def remove_member(request, member_id: int):
         member.save()
 
     return 204, None
+
+#* ------ API Key (API pública) ------
+
+@router.get('/api-key', response={200: ApiKeyOut, 403: ErrorWithCodeSchema})
+def get_api_key(request):
+    if not is_owner_or_admin(request.auth):
+        return 403, ErrorWithCodeSchema(detail='No permission', code='no_permission')
+    org = request.auth.organization
+    if not org.api_key:
+        org.generate_api_key() 
+    return org
+
+@router.post('/api-key/regenerate', response={200: ApiKeyOut, 403: ErrorWithCodeSchema})
+def regenerate_api_key(request):
+    if not is_owner_or_admin(request.auth):
+        return 403, ErrorWithCodeSchema(detail='No permission', code='no_permission')
+    org = request.auth.organization
+    org.generate_api_key()
+    return org
 
 #* ------ Permission Groups Endpoints ------
 

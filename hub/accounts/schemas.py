@@ -5,6 +5,9 @@ from datetime import time
 
 # Auth Schemas
 
+class ApiKeyOut(Schema):
+    api_key: Optional[str] = None
+
 class RefreshIn(Schema):
     refresh: str
 
