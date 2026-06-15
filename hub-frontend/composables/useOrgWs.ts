@@ -1,11 +1,14 @@
 // Singleton da conexão WS — persiste fora do ciclo de vida dos componentes
 let _ws: WebSocket | null = null
 let _reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+let _heartbeat: ReturnType<typeof setInterval> | null = null
+let _onVisibility: (() => void) | null = null
 
 export const useOrgWs = () => {
   const authStore = useAuthStore()
   const config = useRuntimeConfig()
   const route = useRoute()
+  const api = useApi()
   const { add: addUnread, remove: removeUnread } = useUnread()
   const { send: sendNotification } = useNotifications()
 
@@ -47,16 +50,71 @@ export const useOrgWs = () => {
   }
 
   // -------------------------------------------------------------------
+  // Reconciliação confiável (equivalente ao F5, sem reload)
+  // Re-busca a lista via REST e reidrata o estado. Usado no (re)connect do
+  // socket e ao voltar o foco/visibilidade da aba — garante que a sidebar não
+  // fique presa stale se o WS tiver morrido silenciosamente.
+  // -------------------------------------------------------------------
+  const refetch = async () => {
+    if (!authStore.accessToken) return
+    try {
+      const data = await api<any[]>('/api/conversations/')
+      initFromRest(data)
+    } catch {}
+  }
+
+  const startHeartbeat = () => {
+    if (_heartbeat) clearInterval(_heartbeat)
+    // OrgConsumer.receive é no-op → ping mantém a conexão viva e detecta morte
+    _heartbeat = setInterval(() => {
+      if (_ws && _ws.readyState === WebSocket.OPEN) _ws.send(JSON.stringify({ type: 'ping' }))
+    }, 25000)
+  }
+
+  const stopHeartbeat = () => {
+    if (_heartbeat) { clearInterval(_heartbeat); _heartbeat = null }
+  }
+
+  const bindVisibility = () => {
+    if (!process.client || _onVisibility) return
+    _onVisibility = () => {
+      if (document.visibilityState === 'visible') { connect(); refetch() }
+    }
+    document.addEventListener('visibilitychange', _onVisibility)
+    window.addEventListener('focus', _onVisibility)
+  }
+
+  const unbindVisibility = () => {
+    if (!process.client || !_onVisibility) return
+    document.removeEventListener('visibilitychange', _onVisibility)
+    window.removeEventListener('focus', _onVisibility)
+    _onVisibility = null
+  }
+
+  // -------------------------------------------------------------------
   // Conexão WebSocket
   // -------------------------------------------------------------------
   const connect = () => {
     if (!process.client) return
+    // Liga o self-heal por foco/visibilidade já aqui — assim funciona via REST
+    // mesmo que o socket nunca chegue a abrir.
+    bindVisibility()
     // Já conectado ou conectando
     if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return
-    if (!authStore.accessToken) return
+    if (!authStore.accessToken) {
+      // Sem token agora (ex: refresh em andamento) — tenta de novo em breve
+      // para a cadeia de reconexão não morrer em silêncio.
+      _reconnectTimeout = setTimeout(() => connect(), 3000)
+      return
+    }
 
     const wsBase = config.public.apiBase.replace(/^http/, 'ws')
     _ws = new WebSocket(`${wsBase}/ws/org/?token=${authStore.accessToken}`)
+
+    _ws.onopen = () => {
+      startHeartbeat()
+      refetch()  // catch-up do que foi perdido enquanto o socket esteve morto
+    }
 
     _ws.onmessage = (event) => {
       const payload = JSON.parse(event.data)
@@ -83,20 +141,27 @@ export const useOrgWs = () => {
     }
 
     _ws.onclose = async (event) => {
+      stopHeartbeat()
+      console.warn('[OrgWS] fechado', event.code)  // capturado pelo Sentry em prod
       if (event.code === 4001) {
         const refreshed = await authStore.refresh()
         if (refreshed) connect()
-        else navigateTo('/login')
+        else { navigateTo('/login'); return }
         return
       }
-      if (event.code === 4003) return
+      if (event.code === 4003) return  // Sem acesso
       _reconnectTimeout = setTimeout(() => connect(), 3000)
     }
 
-    _ws.onerror = () => _ws?.close()
+    _ws.onerror = (e) => {
+      console.warn('[OrgWS] erro de conexão', e)
+      _ws?.close()
+    }
   }
 
   const disconnect = () => {
+    unbindVisibility()
+    stopHeartbeat()
     if (_reconnectTimeout) clearTimeout(_reconnectTimeout)
     if (_ws) { _ws.onclose = null; _ws.close(); _ws = null }
   }
