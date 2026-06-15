@@ -32,8 +32,10 @@ const addInstanceId = (url: string) => {
 
 const authStore = useAuthStore()
 const config = useRuntimeConfig()
+const { conversations } = useOrgWs()
 let ws: WebSocket | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+let closedByUnmount = false
 
 const fetchMessages = async () => {
   try {
@@ -42,6 +44,28 @@ const fetchMessages = async () => {
     hasMore.value = data.length >= 50
   } catch {}
 }
+
+// Fallback de realtime: o Org WS (lista lateral) é um singleton confiável que recebe
+// `last_message` da conversa em tempo real. Quando ele detecta uma mensagem nova que
+// ainda não está no chat, sincronizamos via REST — garante atualização mesmo se o
+// socket por-conversa estiver morto. Dedup por id evita duplicar quando o WS funciona.
+const syncNewMessages = async () => {
+  const lastId = messages.value.at(-1)?.id ?? 0
+  try {
+    const newer = await api<any[]>(`/api/conversations/${conv.value.id}/messages?after_id=${lastId}`)
+    if (!newer.length) return
+    const existing = new Set(messages.value.map((m: any) => m.id))
+    const unique = newer.filter((m: any) => !existing.has(m.id))
+    if (!unique.length) return
+    messages.value.push(...unique)
+    scrollToBottom()
+  } catch {}
+}
+
+const storeConv = computed(() => conversations.value.find((c: any) => c.id === conv.value.id))
+watch(() => storeConv.value?.last_message?.id, (id) => {
+  if (id && !messages.value.some((m: any) => m.id === id)) syncNewMessages()
+})
 
 const messagesContainerRef = ref<HTMLDivElement>()
 
@@ -80,7 +104,9 @@ const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
 }
 
 const connectWs = () => {
-  if (!authStore.accessToken) return
+  if (!authStore.accessToken || closedByUnmount) return
+  // Evita sockets sobrepostos/zumbis (mesma guarda do useOrgWs)
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return
 
   const wsBase = config.public.apiBase.replace(/^http/, 'ws')
   const wsUrl = `${wsBase}/ws/conversations/${conv.value.id}/?token=${authStore.accessToken}`
@@ -114,20 +140,24 @@ const connectWs = () => {
   }
 
   ws.onclose = async (event) => {
+    if (closedByUnmount) return
     if (event.code === 4001) {
       // Token expirado — tenta renovar e reconectar
       const refreshed = await authStore.refresh()
-      if (refreshed) connectWs()
+      if (refreshed && !closedByUnmount) connectWs()
       return
     }
     if (event.code === 4003) return  // Sem acesso à conversa
     // Reconecta após 3s se o componente ainda estiver montado
     reconnectTimeout = setTimeout(() => {
-      if (ws) connectWs()
+      if (!closedByUnmount) connectWs()
     }, 3000)
   }
 
-  ws.onerror = () => ws?.close()
+  ws.onerror = (e) => {
+    console.warn('[ChatWS] erro de conexão', e)  // capturado pelo Sentry em prod
+    ws?.close()
+  }
 }
 
 // --- Templates ---
@@ -191,6 +221,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  closedByUnmount = true
   if (reconnectTimeout) clearTimeout(reconnectTimeout)
   if (ws) { ws.onclose = null; ws.close() }
   ws = null

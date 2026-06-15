@@ -304,13 +304,16 @@ def delete_conversation(request, conversation_id: int):
 
 
 @router.get('/{conversation_id}/messages', response={200: list[MessageOut], 404: ErrorWithCodeSchema})
-def list_messages(request, conversation_id: int, limit: int = Query(50), before_id: Optional[int] = Query(None)):
+def list_messages(request, conversation_id: int, limit: int = Query(50), before_id: Optional[int] = Query(None), after_id: Optional[int] = Query(None)):
     try:
         conversation = Conversation.objects.get(id=conversation_id, organization=request.auth.organization)
     except Conversation.DoesNotExist:
         return 400, ErrorWithCodeSchema(detail='Conversation not found', code='conversation_not_found')
 
     qs = conversation.messages.select_related('sent_by').prefetch_related('attachments')
+    # after_id: busca mensagens MAIS NOVAS (usado pelo chat p/ sincronizar via Org WS)
+    if after_id is not None:
+        return list(qs.filter(id__gt=after_id).order_by('created_at')[:max(1, limit)])
     if before_id is not None:
         qs = qs.filter(id__lt=before_id)
     msgs = list(qs.order_by('-created_at')[:max(1, limit)])

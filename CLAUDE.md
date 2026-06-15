@@ -75,6 +75,8 @@ Frontend (useApi.ts + Pinia) → /api/* (Django Ninja) → PostgreSQL
 - `ws://.../api/ws/org/` — atualizações de nível org (lista de conversas)
 - `ws://.../api/ws/conversations/<id>/` — chat em tempo real
 
+> **Realtime do chat — fallback via Org WS:** o socket por-conversa (`Chat.vue:connectWs`) é frágil (vive só enquanto o componente está montado); o Org WS (`useOrgWs`, singleton conectado no layout) é confiável. Para garantir que a área de chat atualize mesmo se o socket por-conversa falhar, `Chat.vue` observa `last_message.id` da conversa no store reativo do `useOrgWs` e, ao detectar id novo ausente, chama `syncNewMessages()` → `GET /messages?after_id=<maxLocalId>` (param dedicado, `id__gt` ascendente; `before_id` = paginação p/ trás). Dedup por id evita duplicar quando os dois caminhos entregam. Backend de push (`notify_new_message` vs `notify_conversation_list_updated`) é simétrico/Redis; o gargalo era sempre client-side. Regressão em `conversations/test_messages_after_id.py`.
+
 ### Processamento assíncrono (Celery)
 - Transcrição de áudio via Groq
 - Processamento de documentos (PDF → embedding no system prompt)
