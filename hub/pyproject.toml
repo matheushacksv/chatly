@@ -28,7 +28,10 @@ dependencies = [
     "pydantic[email]>=2.12.5",
     "pypdf>=6.10.2",
     "python-decouple>=3.8",
-    "redis>=7.4.0",
+    # redis-py 7.x aplica socket read timeout no read bloqueante do channels-redis
+    # (channel_receive) sem margem -> WS fecha 1011 ao fim do expiry. Pin em 5.x
+    # (testado contra channels-redis 4.3) resolve. Ver consumers.py / Org WS.
+    "redis>=5.0.1,<6",
     "sentry-sdk[celery,django]>=2.58.0",
     "stripe>=15.1.0",
     "whitenoise>=6.12.0",
