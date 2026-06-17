@@ -71,6 +71,24 @@ def get_status(instance_api_key: str) -> dict:
     response.raise_for_status()
     return response.json()
 
+
+def classify_status(data: dict) -> tuple[str, bool]:
+    """Interpreta o `data` do /instance/status do EvoGO -> (status, needs_qr).
+
+    Fonte de verdade é `LoggedIn` (autenticado/usável), NÃO `Connected` (só socket):
+      - LoggedIn=true                  -> usável                 -> ('connected', False)
+      - Connected=true, LoggedIn=false -> sessão fantasma/logout  -> needs QR ('disconnected', True)
+      - Connected=false                -> socket caiu (cred pode existir) -> reconectável ('disconnected', False)
+    """
+    data = data or {}
+    logged_in = bool(data.get('LoggedIn'))
+    connected = bool(data.get('Connected'))
+    if logged_in:
+        return ('connected', False)
+    if connected:
+        return ('disconnected', True)   # socket up sem conta -> precisa escanear QR
+    return ('disconnected', False)      # socket down -> /connect pode recuperar
+
 def delete_instance(evogo_id: str, instance_api_key: str) -> None:
     response = httpx.delete(
         f'{settings.EVOGO_BASE_URL}/instance/delete/{evogo_id}',

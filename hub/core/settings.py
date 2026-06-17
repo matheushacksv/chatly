@@ -215,7 +215,14 @@ CELERY_BEAT_SCHEDULE = {
     'check-follow-ups': {
         'task': 'conversations.tasks.check_follow_ups',
         'schedule': 1800,  # (seconds)
-    }
+    },
+    # Rede de segurança p/ reconectar instâncias WhatsApp caídas (só o conjunto
+    # disconnected/connecting, fan-out 1 task por instância). Detecção principal é
+    # event-driven (webhook Disconnected + proof-of-life no inbound).
+    'sweep-instances': {
+        'task': 'integrations.tasks.sweep_instances',
+        'schedule': 180,  # 3 min
+    },
 }
 
 

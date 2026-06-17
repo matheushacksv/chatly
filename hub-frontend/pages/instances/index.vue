@@ -214,6 +214,11 @@ const statusLabel = (status: string) => ({
                     'text-red-500': instance.status === 'disconnected',
                   }"
                 >{{ statusLabel(instance.status) }}</span>
+                <span
+                  v-if="instance.needs_qr"
+                  class="text-[10px] font-mono uppercase tracking-widest text-amber-400 border border-amber-500/40 px-1.5 py-0.5"
+                  title="Sessão desautenticada — reconecte escaneando o QR"
+                >Escanear QR</span>
                 <span v-if="instance.phone_number" class="text-[10px] font-mono text-neutral-600">
                   {{ instance.phone_number }}
                 </span>

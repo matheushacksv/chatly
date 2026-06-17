@@ -127,9 +127,13 @@ def get_status(request, instance_id: int):
     try:
         result = evogo_services.get_status(instance.instance_api_key)
         data = result.get('data', {})
-        connected = data.get('Connected', False)
-        instance.status = WhatsAppInstance.Status.CONNECTED if connected else WhatsAppInstance.Status.DISCONNECTED
-        instance.save()
+        # Fonte de verdade é LoggedIn (usável), não Connected (só socket).
+        status, needs_qr = evogo_services.classify_status(data)
+        instance.status = status
+        instance.needs_qr = needs_qr
+        if status == WhatsAppInstance.Status.CONNECTED:
+            instance.reconnect_attempts = 0
+        instance.save(update_fields=['status', 'needs_qr', 'reconnect_attempts'])
     except Exception as e:
         pass
 

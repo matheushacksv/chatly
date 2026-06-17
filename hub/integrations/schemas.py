@@ -25,6 +25,7 @@ class WhatsAppInstanceOut(Schema):
     instance_name: str
     phone_number: str
     status: str
+    needs_qr: bool = False
     agent_id: Optional[int] = None
 
     @staticmethod
