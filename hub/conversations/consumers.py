@@ -27,7 +27,14 @@ class OrgConsumer(AsyncWebsocketConsumer):
         self.org_id = user.organization_id
         self.group_name = f'org_{self.org_id}'
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+        except Exception as e:
+            # Falha do channel layer (Redis) — logar a causa real em vez de
+            # deixar o Daphne fechar com 1011 mudo (cliente entra em loop de reconnect).
+            logger.exception(f'[OrgConsumer] group_add falhou (channel layer): {e}')
+            await self.close(code=1011)
+            return
         await self.accept()
 
     async def disconnect(self, close_code):
@@ -79,7 +86,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=4003)
             return
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+        except Exception as e:
+            logger.exception(f'[ChatConsumer] group_add falhou (channel layer): {e}')
+            await self.close(code=1011)
+            return
         await self.accept()
 
     async def disconnect(self, close_code):

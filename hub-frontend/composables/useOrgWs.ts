@@ -3,6 +3,10 @@ let _ws: WebSocket | null = null
 let _reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let _heartbeat: ReturnType<typeof setInterval> | null = null
 let _onVisibility: (() => void) | null = null
+// Backoff: nº de reconexões seguidas que NÃO estabilizaram.
+let _reconnectAttempts = 0
+// Timer que só dispara refetch/reset do backoff se a conexão sobreviver.
+let _openSettleTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useOrgWs = () => {
   const authStore = useAuthStore()
@@ -113,7 +117,14 @@ export const useOrgWs = () => {
 
     _ws.onopen = () => {
       startHeartbeat()
-      refetch()  // catch-up do que foi perdido enquanto o socket esteve morto
+      // NÃO refetch no open imediato: se o server fecha 1011 logo após o accept,
+      // o refetch a cada ciclo vira tempestade de GET. Só reconcilia e zera o
+      // backoff se a conexão SOBREVIVER (>2s) — sinal de socket realmente saudável.
+      if (_openSettleTimer) clearTimeout(_openSettleTimer)
+      _openSettleTimer = setTimeout(() => {
+        _reconnectAttempts = 0
+        refetch()  // catch-up do que foi perdido enquanto o socket esteve morto
+      }, 2000)
     }
 
     _ws.onmessage = (event) => {
@@ -142,6 +153,7 @@ export const useOrgWs = () => {
 
     _ws.onclose = async (event) => {
       stopHeartbeat()
+      if (_openSettleTimer) { clearTimeout(_openSettleTimer); _openSettleTimer = null }
       console.warn('[OrgWS] fechado', event.code)  // capturado pelo Sentry em prod
       if (event.code === 4001) {
         const refreshed = await authStore.refresh()
@@ -150,7 +162,11 @@ export const useOrgWs = () => {
         return
       }
       if (event.code === 4003) return  // Sem acesso
-      _reconnectTimeout = setTimeout(() => connect(), 3000)
+      // Backoff exponencial + jitter: socket que cai/é recusado (ex: 1011 do server)
+      // não martela a cada 3s. 3s,6s,12s,24s… cap 30s. Reset só em conexão estável.
+      const delay = Math.min(30000, 3000 * 2 ** _reconnectAttempts) + Math.random() * 1000
+      _reconnectAttempts++
+      _reconnectTimeout = setTimeout(() => connect(), delay)
     }
 
     _ws.onerror = (e) => {
@@ -162,6 +178,7 @@ export const useOrgWs = () => {
   const disconnect = () => {
     unbindVisibility()
     stopHeartbeat()
+    if (_openSettleTimer) { clearTimeout(_openSettleTimer); _openSettleTimer = null }
     if (_reconnectTimeout) clearTimeout(_reconnectTimeout)
     if (_ws) { _ws.onclose = null; _ws.close(); _ws = null }
   }
