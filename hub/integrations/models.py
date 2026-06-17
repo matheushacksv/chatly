@@ -19,6 +19,13 @@ class WhatsAppInstance(models.Model):
     instance_api_key = models.TextField()
     phone_number = models.CharField(max_length=20, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DISCONNECTED)
+    # needs_qr: sessão desautenticada (EvoGO Connected=true, LoggedIn=false, ou logout
+    # real). /connect NÃO resolve — exige re-scan do QR. Tira a instância do retry.
+    needs_qr = models.BooleanField(default=False)
+    # tentativas de reconnect consecutivas sem sucesso (zera ao logar de novo).
+    reconnect_attempts = models.PositiveIntegerField(default=0)
+    # último sinal de vida (Connected/PairSuccess ou inbound). Observability.
+    last_seen_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class PipedriveIntegration(models.Model):

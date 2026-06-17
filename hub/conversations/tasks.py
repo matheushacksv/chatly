@@ -170,6 +170,12 @@ def send_whatsapp_message(self, message_id: int, instance_id: int = None):
             logger.warning('[send_whatsapp_message] instance not found for message %s', message_id)
             return
 
+        if instance.needs_qr:
+            # Sessão desautenticada (LoggedIn=false): /connect não resolve, exige
+            # re-scan do QR. Não adianta retentar — aborta sem erro.
+            logger.warning('[send_whatsapp_message] instance %s needs QR — envio de %s abortado', instance.id, message_id)
+            return
+
         send_message(
             instance_api_key=instance.instance_api_key,
             phone=conv.contact.phone,
@@ -178,6 +184,15 @@ def send_whatsapp_message(self, message_id: int, instance_id: int = None):
 
     except Exception as exc:
         logger.error('[send_whatsapp_message] failed for message %s: %s', message_id, exc)
+        # Falha de envio normalmente = sessão caída -> reconcilia/reconecta a instância
+        # (detecção event-driven, sem polling). reconnect_instance decide reconnect vs needs_qr.
+        _inst = locals().get('instance')
+        if _inst is not None:
+            try:
+                from integrations.tasks import reconnect_instance
+                reconnect_instance.delay(_inst.id)
+            except Exception:
+                pass
         raise self.retry(exc=exc, countdown=10)
 
 @shared_task

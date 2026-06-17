@@ -2,6 +2,7 @@ from integrations.models import PipedriveIntegration
 from conversations.consumers import notify_new_message, notify_new_conversation, notify_conversation_list_updated
 from ninja import Router
 from django.http import HttpRequest
+from django.utils import timezone
 from .models import WhatsAppInstance
 from contacts.models import Contact
 from conversations.models import Conversation, Message
@@ -10,61 +11,78 @@ from .schemas import WebhookPayload
 from conversations.utils.utils import upload_attachment
 from conversations.models import MessageAttachment
 from integrations.pipedrive_tasks import create_deal_from_conversation, sync_contact_to_pipedrive
-from . import services
 from conversations.tasks import schedule_ai_processing
 
 router = Router(tags=['Webhooks'])
 
-def _register_webhook(instance, services):
-    from django.conf import settings
-    webhook_url = f'{settings.BASE_URL}/api/webhooks/whatsapp/{instance.instance_name}/'
-    try:
-        services.connect_instance(instance_api_key=instance.instance_api_key, webhook_url=webhook_url)
-    except Exception:
-        pass
 
 @router.post('/{instance_name}/', auth=None)
 def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookPayload):
     event = payload.event
-    data = payload.data or  {}
+    data = payload.data or {}
 
-    
     if event == 'PairSuccess':
+        # QR escaneado AGORA -> logado de verdade. Fonte positiva mais forte.
         try:
             instance = WhatsAppInstance.objects.get(instance_name=instance_name)
             jid = data.get('jid', '') if isinstance(data, dict) else ''
             phone = jid.split(':')[0].split('@')[0]
+            fields = {
+                'status': WhatsAppInstance.Status.CONNECTED,
+                'needs_qr': False,
+                'reconnect_attempts': 0,
+                'last_seen_at': timezone.now(),
+            }
             if phone:
-                instance.phone_number = phone
-            instance.status = WhatsAppInstance.Status.CONNECTED
-            instance.save()
-            _register_webhook(instance, services)
+                fields['phone_number'] = phone
+            WhatsAppInstance.objects.filter(id=instance.id).update(**fields)
         except WhatsAppInstance.DoesNotExist:
             pass
         return {'status': 'ok'}
 
     if event == 'Connected':
+        # NÃO re-conectar aqui: o fluxo connect -> evento Connected -> connect
+        # de novo causava flap (sessão nunca estabilizava). Só registra sinal de
+        # vida e reconcilia o LoggedIn real de forma assíncrona (reconnect_instance
+        # lê /instance/status e decide connected vs needs_qr sem abrir socket à toa).
         try:
             instance = WhatsAppInstance.objects.get(instance_name=instance_name)
-            instance.status = WhatsAppInstance.Status.CONNECTED
-            instance.save()
-            _register_webhook(instance, services)
+            WhatsAppInstance.objects.filter(id=instance.id).update(last_seen_at=timezone.now())
+            from integrations.tasks import reconnect_instance
+            reconnect_instance.delay(instance.id)
         except WhatsAppInstance.DoesNotExist:
             pass
-        return {'status': 'ok'}                                                                                                                                          
-                                                                                                                                                                       
-    if event == 'LoggedOut':                                                                                                                                             
-        try:                                                                                                                                                           
+        return {'status': 'ok'}
+
+    if event == 'Disconnected':
+        # Queda transitória do socket -> marca down e tenta reconectar (reconnect_instance
+        # distingue recuperável de logout real via LoggedIn).
+        try:
             instance = WhatsAppInstance.objects.get(instance_name=instance_name)
-            instance.status = WhatsAppInstance.Status.DISCONNECTED                                                                                                       
-            instance.save()                                                                                                                                              
-        except WhatsAppInstance.DoesNotExist:                                                                                                                            
-            pass                                                                                                                                                         
-        return {'status': 'ok'}   
+            WhatsAppInstance.objects.filter(id=instance.id).update(
+                status=WhatsAppInstance.Status.DISCONNECTED,
+            )
+            from integrations.tasks import reconnect_instance
+            reconnect_instance.delay(instance.id)
+        except WhatsAppInstance.DoesNotExist:
+            pass
+        return {'status': 'ok'}
+
+    if event == 'LoggedOut':
+        # Logout real (device removido / sessão invalidada) -> /connect NÃO resolve,
+        # precisa re-scan do QR. Sinaliza needs_qr (badge na UI).
+        try:
+            instance = WhatsAppInstance.objects.get(instance_name=instance_name)
+            WhatsAppInstance.objects.filter(id=instance.id).update(
+                status=WhatsAppInstance.Status.DISCONNECTED,
+                needs_qr=True,
+            )
+        except WhatsAppInstance.DoesNotExist:
+            pass
+        return {'status': 'ok'}
 
     if event != 'Message':
         return {'status': 'ignored'} #####! Ignorando tudo que não é mensagem
-    
 
     info = data.get('Info', {}) if isinstance(data, dict) else ''
 
@@ -95,6 +113,15 @@ def whatsapp_webhook(request: HttpRequest, instance_name: str, payload: WebhookP
         return {'status': 'instance_not_found'}
 
     organization = instance.organization
+
+    # Proof-of-life: recebemos mensagem por esta instância => está logada e viva.
+    # Corrige status stale sem custo de polling (event-driven).
+    WhatsAppInstance.objects.filter(id=instance.id).update(
+        status=WhatsAppInstance.Status.CONNECTED,
+        needs_qr=False,
+        reconnect_attempts=0,
+        last_seen_at=timezone.now(),
+    )
 
     contact, created = Contact.objects.get_or_create(
         organization=organization,
